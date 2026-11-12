@@ -8,7 +8,7 @@ A virtual closet you can add to your iPhone home screen. Add clothes with front 
 
 - Everything you add is saved **on your own device** (in the browser's storage). Nothing is stored in this repo.
 - The Calendar shows a 7-day forecast from [Open-Meteo](https://open-meteo.com) (free, no account). It uses the location on your GitHub profile if you have one, otherwise Toronto, and you can change it. Only the rounded location (about 1 km) is sent to Open-Meteo.
-- Optional: tap the dot in the top-right corner to back up and sync to **your own private GitHub repo** using a token that only you hold. Each person who uses the app connects their own repo.
+- Optional: tap the cloud badge in the top-right corner to back up and sync to **your own private GitHub repo** using a token that only you hold. Each person who uses the app connects their own repo.
 
 ## Install on iPhone
 
