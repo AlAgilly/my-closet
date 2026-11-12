@@ -6,12 +6,12 @@ const GROUPS=[
   ['Bottoms',['Jeans','Pants','Shorts','Skirts','Overalls']],
   ['One-pieces',['Dresses','Jumpsuits']],
   ['Outerwear',['Jackets','Coats','Blazers','Vests']],
-  ['Shoes',['Footwear']],
+  ['Shoes',['Footwear','Heels']],
   ['Bags',['Bags']],
   ['Accessories',['Belts','Glasses','Hats','Jewelry']],
   ['Other',['Activewear','Other']]];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
-const TYPE_ORDER=['Activewear','Bags','Belts','Blazers','Bodysuits','Cardigans','Coats','Dresses','Footwear','Glasses','Hats','Jackets','Jeans','Jewelry','Jumpsuits','Overalls','Pants','Shorts','Skirts','Sweaters','Hoodies','Tops','Tank tops','Vests','Other'];
+const TYPE_ORDER=['Activewear','Bags','Belts','Blazers','Bodysuits','Cardigans','Coats','Dresses','Footwear','Heels','Glasses','Hats','Jackets','Jeans','Jewelry','Jumpsuits','Overalls','Pants','Shorts','Skirts','Sweaters','Hoodies','Tops','Tank tops','Vests','Other'];
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
 const GENERIC=[['black','#1c1c1e'],['white','#f6f6f4'],['grey','#8e8e93'],['beige','#d8c3a0'],['brown','#7b5234'],['red','#c8302f'],['orange','#ec8a2f'],['yellow','#f2cf45'],['green','#3f8f53'],['blue','#3b74c4'],['navy','#1f2d55'],['purple','#7a4a9c'],['pink','#ec9ab8']];
 const GEN_HEX=Object.fromEntries(GENERIC);
@@ -232,10 +232,10 @@ async function removeBg(blob,status){
 const TYPE_PHRASE={'Tops':'a top such as a t-shirt, shirt or blouse','Tank tops':'a sleeveless tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants',
   'Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan','Jeans':'a pair of denim jeans','Pants':'a pair of trousers or leggings','Shorts':'a pair of shorts','Skirts':'a skirt',
   'Overalls':'a pair of overalls with a bib and shoulder straps','Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
-  'Footwear':'a pair of shoes such as sneakers, boots, heels or sandals','Bags':'a handbag or purse','Belts':'a belt','Glasses':'a pair of sunglasses or eyeglasses','Hats':'a hat or cap',
+  'Footwear':'a pair of shoes such as sneakers, boots, flats, loafers or sandals','Heels':'a pair of high heels or pumps','Bags':'a handbag or purse','Belts':'a belt','Glasses':'a pair of sunglasses or eyeglasses','Hats':'a hat or cap',
   'Jewelry':'a piece of jewelry such as a necklace, ring, earrings or a watch','Activewear':'athletic sportswear such as a sports bra or gym leggings'};
 const SINGULAR={'Tops':'top','Tank tops':'tank top','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
-  'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'shoes','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
+  'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'shoes','Heels':'heels','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
   'Jewelry':'jewelry','Activewear':'activewear','Other':'item'};
 let CLIP=null;
 async function loadClip(status){
@@ -494,49 +494,40 @@ function closetView(){
       <select id="fSort" aria-label="Sort">${[['new','Newest first'],['priceHi','Price: high to low'],['least','Least worn'],['longest','Not worn in longest'],['name','A–Z']].map(([v,l])=>`<option value="${v}" ${S.sort===v?'selected':''}>${l}</option>`).join('')}</select>
     </div><div id="results">${closetResults()}</div>`;
 }
-/* Type picker icons. IconPark Outline (Apache-2.0, ByteDance) and Phosphor Thin (MIT, Phosphor Icons); Activewear and Bags from Flaticon (credited),
-   strokes thinned to match; tank top is the owner's own drawing; 'all', scarf and sleepwear drawn for this app. */
+/* Type picker icons: Flaticon icons (free with attribution; authors credited in the Stats tab and README),
+   redrawn at one uniform line width. The 'All' icon is drawn for this app. */
 const ICON={
-  overalls:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M16 4v10M32 4v10M15 14h18v10H15zM13 24h22l1.5 20h-9L24 30l-3.5 14h-9z"/><path d="M20 17h8v4h-8z"/></g></g>',
-  all:'<rect x="4" y="4" width="3.6" height="16" rx="1.6"/><rect x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/>',
-  tank:'<g transform="scale(.25)"><path stroke-width="4" d="M31 16 H34 L36 34 Q48 43 60 34 L62 16 H65 L64 36 Q64 41 68 44 L65 78 Q48 81 31 78 L28 44 Q32 41 32 36 Z M31.4 74 Q48 77 64.6 74"/></g>',
-  scarf:'<path d="M8 3h8v6.2l-2 2V21h-3.2v-9.6L8 9z"/><path d="M8 6h8M10.8 21v-2M12.4 21v-2M14 21v-2"/>',
-  sleep:'<path d="M19 14.5A7.2 7.2 0 1 1 9.5 5a5.8 5.8 0 0 0 9.5 9.5z"/>',
-  tshirt:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="m9 9l9-5h12l9 5l4 15l-8 6v14H13V30l-8-6zm4 22v-7m22 7v-7"/></g>',
-  bodysuit:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="m6.572 19.575l-2.165-7.217c-.244-.813.048-1.696.765-2.15C8.057 8.377 14.642 5 24 5c9.343 0 15.8 3.366 18.759 5.198c.748.463 1.068 1.377.816 2.22l-2.147 7.157A2 2 0 0 1 39.512 21H36c-1.105 0-2 .891-2 1.996v10.006c0 1.104-.905 2.011-1.973 2.295c-1.299.345-2.952 1.09-4.027 2.703c-2 3-2 6-2 6h-4s0-3-2-6c-1.075-1.613-2.728-2.358-4.027-2.703c-1.068-.284-1.973-1.19-1.973-2.295V22.996A1.996 1.996 0 0 0 12 21H8.488a2 2 0 0 1-1.916-1.425"/><path d="M29.811 5.5a6 6 0 1 1-11.622 0"/><path d="M13.5 6.494A37 37 0 0 1 24 5c4.043 0 7.545.63 10.457 1.494"/></g></g>',
-  shirt:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="m6 10l12-6h12l12 6l-2 25h-6v9H14v-9H8zm8 25V20m20 15V20"/><path d="M24 10a6 6 0 0 0 6-6H18a6 6 0 0 0 6 6"/></g></g>',
-  sweater:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M37 17v20m-26 0v7h26v-7m-26 0H4V17c0-3 2-6.5 5-9s9-4 9-4h12s6 1.5 9 4s5 6 5 9v20h-7m-26 0V17"/><path d="M30 4a6 6 0 0 1-12 0"/></g></g>',
-  hoodie:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M37 22v15m-26 0v7h26v-7m-26 0H4V22c0-3 2-6.5 5-9s7-3 7-3l8 8M11 37V22m26 15h7V22c0-3-2-6.5-5-9s-7-3-7-3l-8 8m0 0v9"/><path d="M9 13c3-2.5 7-3 7-3l8 8l8-8s4 .5 7 3l2-4.5L39 4H9L7 8.5z"/></g></g>',
-  cardigan:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M37 17v20m-26 0v7h26v-7m-26 0H4V17c0-3 2-6.5 5-9s7-4 7-4h16s4 1.5 7 4s5 6 5 9v20h-7m-26 0V17m13 0v27m0-27L16 4m16 0l-8 13"/></g>',
-  jeans:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M33 44h9L38 4H10L6 44h9l9-25zM24 4v5.5"/><path d="M17 4s0 6-2 8s-6.1 3-6.1 3M31 4s0 6 2 8s6.1 3 6.1 3"/></g></g>',
-  pants:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M33 44h9L38 4H10L6 44h9l9-25zM24 4v5.5"/><path d="M17 4s0 6-2 8s-6.1 3-6.1 3M31 4s0 6 2 8s6.1 3 6.1 3"/></g></g>',
-  sweatpants:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="m24 19l9 19h9L38 4H10L6 38h9zm10 19l1 6h6v-6zm-21 6H7v-6h7zM24 4l4 7.5M24 4l-4 7.5"/></g>',
-  shorts:'<g transform="scale(.5)"><g fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M37 6H11v10L4 33l15 9l5-6l5 6l15-9l-7-17z"/><path fill="currentColor" d="M11 14a2 2 0 1 0 0 4zm26 4a2 2 0 1 0 0-4zm-26 0h26v-4H11z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M37 14v2l1.75 4.25M11 14v2l-1.75 4.25"/></g></g>',
-  skirt:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="m12 9l5-5h14l5 5l7 26s-3 9-19 9s-19-9-19-9zm1 33l4-16"/><path d="M5 35s3 9 19 9"/></g></g>',
-  leggings:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="m24 19l9 19h9L38 4H10L6 38h9zm10 19l1 6h6v-6zm-21 6H7v-6h7zM24 4l4 7.5M24 4l-4 7.5"/></g>',
-  dress:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="m18 18l-4-8h20l-4 8v6l10.5 20H7l11-20zm2-14v6m8-6v6M18 21h12m-12-2v4m12-4v4"/></g>',
-  jumpsuit:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="m6.572 19.575l-2.165-7.217c-.244-.813.048-1.696.765-2.15C8.057 8.377 14.642 5 24 5c9.343 0 15.8 3.366 18.759 5.198c.748.463 1.068 1.377.816 2.22l-2.147 7.157A2 2 0 0 1 39.512 21H36c-1.105 0-2 .891-2 1.996v10.006c0 1.104-.905 2.011-1.973 2.295c-1.299.345-2.952 1.09-4.027 2.703c-2 3-2 6-2 6h-4s0-3-2-6c-1.075-1.613-2.728-2.358-4.027-2.703c-1.068-.284-1.973-1.19-1.973-2.295V22.996A1.996 1.996 0 0 0 12 21H8.488a2 2 0 0 1-1.916-1.425"/><path d="M29.811 5.5a6 6 0 1 1-11.622 0"/><path d="M13.5 6.494A37 37 0 0 1 24 5c4.043 0 7.545.63 10.457 1.494"/></g></g>',
-  jacket:'<g transform="scale(.5)"><g fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M37 25v12m-26 0v7h26v-7m-26 0H4V18l6.125-5L17 18l7-8l7 8l6.875-5L44 18v19h-7m-26 0V25"/><path d="m17 18l7-8l7 8l11-8l-2.5-6H9l-3 6z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M19 10h5m5 0h-5m0 0l-7 8l-11-8l3-6h30.5l2.5 6l-11 8z"/></g></g>',
-  coat:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M12 10c4-1 7-6 7-6h10s3 5.2 7 6l6 21h-8v13H14V31H6z"/><path d="m19 4l5 14l5-14m-5 14v26"/></g></g>',
-  blazer:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M37 21v16m-26 0v7h26v-7m-26 0H4V10l14-6h12l14 6v27h-7m-26 0V21M30 4l-6 14m0 0L18 4m6 14v26m6-40l-6 14m0 0L18 4"/><path d="m18 4l-4 8l4 5.5l-2 5.5l8 14m6-33l5 8l-5 5.5l2 5.5l-8 14"/></g></g>',
-  vest:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M36 4h-5l-7 20v20h16V19l-4-6zM12 4h5l7 20v20H8V19l4-6z"/></g>',
-  sneaker:'<g transform="scale(.09375)"><path fill="currentColor" d="m227.38 132.91l-60.72-20.24A28 28 0 0 1 150 97.53l-23.31-54.41a12 12 0 0 0-15.07-6.4L35.9 64.25A12 12 0 0 0 28 75.53V192a12 12 0 0 0 12 12h200a12 12 0 0 0 12-12v-24.94a36 36 0 0 0-24.62-34.15M38.63 71.77l75.72-27.53a3.8 3.8 0 0 1 1.37-.24a4 4 0 0 1 3.63 2.32L128.17 67l-25.54 9.29A4 4 0 0 0 104 84a4.1 4.1 0 0 0 1.37-.24l25.95-9.44l7.89 18.44l-20.58 7.48A4 4 0 0 0 120 108a4.1 4.1 0 0 0 1.37-.24l21-7.64l.25.6a36.1 36.1 0 0 0 13.52 15.7l-21.5 7.82A4 4 0 0 0 136 132a4.1 4.1 0 0 0 1.37-.24l29.3-10.66l58.18 19.4a28 28 0 0 1 19 23.5H36V75.53a4 4 0 0 1 2.63-3.76M240 196H40a4 4 0 0 1-4-4v-20h208v20a4 4 0 0 1-4 4"/></g>',
-  boot:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M19 4h16l-4 32l1.236.618A5 5 0 0 1 35 41.09V44H10v-2l13-6zm1 8h14"/></g>',
-  shoes:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M29.183 20C31.264 15.054 36.35 10.667 39 8c1.104.667 5 2.604 5 7c0 4-1.455 7.111-3 8l-5.987 4.191a23 23 0 0 0-6.533 7.01L25 40H4v-4c2.429-1.333 9.82-5.867 13-8c7 4 10.5-4 12.183-8M43 21v19"/></g>',
-  sandal:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.1"><path stroke-linejoin="bevel" d="m11.2 6.854l-.708.225c-3.487 1.104-5.536 4.71-4.898 8.312c.73 4.115 1.291 8.04 2.095 11.661c.785 3.537.447 6.689.25 10.032c-.192 3.266 2.409 5.843 5.672 6.07c4.623.321 8.182-4.082 7.297-8.63c-.684-3.516-1.202-7.318-.969-10.024c.25-2.904.277-7.29.23-11.251c-.055-4.616-4.568-7.788-8.968-6.395Zm23.61-1.131l-.77.144c-3.455.648-5.892 3.761-5.926 7.277C28.071 17.701 27.831 22.15 28 26c.156 3.553-.437 6.153-1.017 9.053c-.626 3.13 1.443 6.044 4.54 6.815c4.485 1.116 8.712-2.698 8.577-7.318c-.093-3.175.03-6.512.681-8.95c.79-2.96 1.547-7.903 2.129-12.314c.61-4.632-3.509-8.424-8.1-7.563Z"/><path stroke-linejoin="round" stroke-miterlimit="2" d="M8 29c1-9 6-14 6-14c1.636 2 4 8 6 14m20 1c.5-8-5-16-5-16c-1.636 2-7 5.278-7 11.5"/></g></g>',
-  loafer:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M4 29h40v6H4zm3-7c-3 4-3 7-3 7h26v-8c0-2.5-1.5-5.5-5-6s-13.124.5-18 7"/></g>',
-  bag:'<image href="icons/bags.png" x="0" y="0" width="24" height="24"/>',
-  hat:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M12 10a2 2 0 0 1 2-2h20a2 2 0 0 1 2 2v10H12zm32 25c-1.108 1.333-2.375 5-7.6 5c-2.737 0-6.456-1.684-11.4-3"/><path d="M4 35s6-9 8-15h24c2 6 8 15 8 15c-6-4-25 5-32 5c-5.5 0-6.833-3.667-8-5"/></g></g>',
-  jewelry:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M17 32.41L24 29l7 3.41v7.5L24 44l-7-4.09zM8 4c.455 8.333 6 25 16 25S40 12.784 40 4"/></g>',
-  belt:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="m10.565 30.364l-6.364 6.364l7.071 7.071l6.364-6.364m4.243-18.385l14.85-14.849l7.07 7.071l-14.849 14.85"/><path d="M9.859 29.657a2 2 0 0 1 0-2.829l8.485-8.485a2 2 0 0 1 2.828 0l8.485 8.485a2 2 0 0 1 0 2.829l-8.485 8.485a2 2 0 0 1-2.828 0zm15.556-7.071l-7.071 7.07M31.779 9.15l7.07 7.072M26.828 14.1l7.071 7.072m-18.384 0L26.83 32.485"/></g></g>',
-  sunglasses:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><circle cx="12" cy="35" r="7"/><circle cx="36" cy="35" r="7"/><path d="M5 34V10.883c0-1.391 0-2.087.378-2.61c.377-.525 1.037-.745 2.357-1.185L11 6m32 28V10.883c0-1.391 0-2.087-.377-2.61c-.378-.525-1.038-.745-2.358-1.185L37 6m-8 28a5 5 0 0 0-10 0"/></g></g>',
-  watch:'<g transform="scale(.5)"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1"><path d="M34.956 31L31 44H17l-3.956-13m0-14L17 4h14l3.956 13"/><path d="M37 24c0 2.577-.75 4.98-2.044 7A12.99 12.99 0 0 1 24 37a12.99 12.99 0 0 1-10.956-6A12.94 12.94 0 0 1 11 24c0-2.577.75-4.98 2.044-7A12.99 12.99 0 0 1 24 11a12.99 12.99 0 0 1 10.956 6A12.94 12.94 0 0 1 37 24"/><path d="M24 17v7l4 4"/></g></g>',
-  active:'<image href="icons/activewear.png" x="0" y="0" width="24" height="24"/>',
-  other:'<g transform="scale(.5)"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M19 13a5 5 0 1 1 5 5v4m20 14H4c0-5 6-14 20-14s20 9 20 14"/></g>'};
-const TYPE_ICON={'Tops':'tshirt','Tank tops':'tank','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
-  'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'sneaker','Bags':'bag','Belts':'belt','Glasses':'sunglasses','Hats':'hat',
-  'Jewelry':'jewelry','Activewear':'active','Other':'other'};
-const GROUP_ICON={Tops:'tshirt',Bottoms:'pants','One-pieces':'dress',Outerwear:'jacket',Shoes:'sneaker',Bags:'bag',Accessories:'hat',Other:'other'};
+  all:'<rect stroke-width=".85" x="4" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/>',
+  activewear:'<image href="icons/activewear.png" x="0" y="0" width="24" height="24"/>',
+  bags:'<image href="icons/bags.png" x="0" y="0" width="24" height="24"/>',
+  belts:'<image href="icons/belts.png" x="0" y="0" width="24" height="24"/>',
+  blazers:'<image href="icons/blazers.png" x="0" y="0" width="24" height="24"/>',
+  bodysuits:'<image href="icons/bodysuits.png" x="0" y="0" width="24" height="24"/>',
+  cardigans:'<image href="icons/cardigans.png" x="0" y="0" width="24" height="24"/>',
+  coats:'<image href="icons/coats.png" x="0" y="0" width="24" height="24"/>',
+  dresses:'<image href="icons/dresses.png" x="0" y="0" width="24" height="24"/>',
+  footwear:'<image href="icons/footwear.png" x="0" y="0" width="24" height="24"/>',
+  heels:'<image href="icons/heels.png" x="0" y="0" width="24" height="24"/>',
+  glasses:'<image href="icons/glasses.png" x="0" y="0" width="24" height="24"/>',
+  hats:'<image href="icons/hats.png" x="0" y="0" width="24" height="24"/>',
+  jackets:'<image href="icons/jackets.png" x="0" y="0" width="24" height="24"/>',
+  jeans:'<image href="icons/jeans.png" x="0" y="0" width="24" height="24"/>',
+  jewelry:'<image href="icons/jewelry.png" x="0" y="0" width="24" height="24"/>',
+  jumpsuits:'<image href="icons/jumpsuits.png" x="0" y="0" width="24" height="24"/>',
+  overalls:'<image href="icons/overalls.png" x="0" y="0" width="24" height="24"/>',
+  pants:'<image href="icons/pants.png" x="0" y="0" width="24" height="24"/>',
+  shorts:'<image href="icons/shorts.png" x="0" y="0" width="24" height="24"/>',
+  skirts:'<image href="icons/skirts.png" x="0" y="0" width="24" height="24"/>',
+  sweaters:'<image href="icons/sweaters.png" x="0" y="0" width="24" height="24"/>',
+  hoodies:'<image href="icons/hoodies.png" x="0" y="0" width="24" height="24"/>',
+  tops:'<image href="icons/tops.png" x="0" y="0" width="24" height="24"/>',
+  tanktops:'<image href="icons/tanktops.png" x="0" y="0" width="24" height="24"/>',
+  vests:'<image href="icons/vests.png" x="0" y="0" width="24" height="24"/>',
+  other:'<image href="icons/other.png" x="0" y="0" width="24" height="24"/>'};
+const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
+  'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
+  'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Tops':'tops','Tank tops':'tanktops','Vests':'vests','Other':'other'};
+const GROUP_ICON={Tops:'tops',Bottoms:'pants','One-pieces':'dresses',Outerwear:'jackets',Shoes:'footwear',Bags:'bags',Accessories:'hats',Other:'other'};
 function typeIcon(t){
   if(t==='All')return ICON.all;
   if(TYPE_ICON[t])return ICON[TYPE_ICON[t]];
@@ -695,7 +686,7 @@ function statsView(){
     <h3>Most worn</h3>${most.length?`<div class="list">${most.map(([id,i])=>li(id,i,`Worn ${wornCount(id)}× · last ${ago(last(W[id]))}`)).join('')}</div>`:'<p class="muted" style="margin:0">Log outfits on the calendar to see this.</p>'}
     <h3>Best value</h3>${cpw.length?`<div class="list">${cpw.map(([id,i,v])=>li(id,i,`${money(Math.round(v*100)/100)} per wear · ${money(i.price)} total`)).join('')}</div>`:'<p class="muted" style="margin:0">Add prices and log what you wear to see cost per wear.</p>'}
     <h3>Not worn in 90+ days · ${neverOrStale.length}</h3>${neverOrStale.length?`<div class="list">${neverOrStale.slice(0,12).map(([id,i])=>li(id,i,last(W[id])?`Last worn ${fmtDate(last(W[id]))}`:'Never worn')).join('')}</div>`:'<p class="muted" style="margin:0">You’ve worn everything recently.</p>'}
-    <p class="credits">Icons: <a href="https://github.com/bytedance/IconPark" target="_blank" rel="noopener">IconPark</a>, <a href="https://phosphoricons.com" target="_blank" rel="noopener">Phosphor</a>, <a href="https://www.flaticon.com/free-icon/sportwear_18842964" target="_blank" rel="noopener">Sportwear by Adury5711</a> and <a href="https://www.flaticon.com/free-icon/handbag_3345463" target="_blank" rel="noopener">Handbag by juicy_fish</a> from Flaticon.</p>`;
+    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, Irfansusanto20, JoeKanaka, iconnut, bqlqn and Nabila30. Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
 }
 
 /* ---------- main view events ---------- */
@@ -1144,7 +1135,7 @@ render();
       await idbPut('items',iid,v);S.items.set(iid,v);
     }
     // retired types -> the owner's categories; auto-made names ("Black heels") follow the new type
-    {const MOVE={'T-shirts':'Tops','Shirts':'Tops','Blouses':'Tops','Leggings':'Pants','Sweatpants':'Pants','Sneakers':'Footwear','Boots':'Footwear','Shoes':'Footwear','Heels':'Footwear','Flats':'Footwear',
+    {const MOVE={'T-shirts':'Tops','Shirts':'Tops','Blouses':'Tops','Leggings':'Pants','Sweatpants':'Pants','Sneakers':'Footwear','Boots':'Footwear','Shoes':'Footwear','Flats':'Footwear',
       'Sandals':'Footwear','Loafers':'Footwear','Sunglasses':'Glasses','Watches':'Jewelry','Scarves':'Other','Sleepwear':'Other','Swimwear':'Other'};
      const OLD={'T-shirts':'t-shirt','Shirts':'shirt','Blouses':'blouse','Leggings':'leggings','Sweatpants':'sweatpants','Sneakers':'sneakers','Boots':'boots','Shoes':'shoes','Heels':'heels','Flats':'flats','Sandals':'sandals',
       'Loafers':'loafers','Sunglasses':'sunglasses','Watches':'watch','Scarves':'scarf','Sleepwear':'pajamas','Swimwear':'swimsuit'};
