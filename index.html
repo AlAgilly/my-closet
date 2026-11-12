@@ -124,6 +124,7 @@ nav.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
 /* sheet */
 .scrim{position:fixed;inset:0;z-index:20;background:rgb(10 8 16/.45);display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--bg);width:100%;max-width:640px;max-height:92%;overflow-y:auto;border-radius:20px 20px 0 0;padding:8px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;animation:up .22s ease-out}
+.sheet>*{flex-shrink:0}
 @keyframes up{from{transform:translateY(30px);opacity:.6}}
 @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}

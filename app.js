@@ -13,9 +13,9 @@ const GROUPS=[
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=['Activewear','Bags','Belts','Blazers','Bodysuits','Cardigans','Coats','Dresses','Footwear','Heels','Glasses','Hats','Jackets','Jeans','Jewelry','Jumpsuits','Overalls','Pants','Shorts','Skirts','Sweaters','Hoodies','Tops','Tank tops','Vests','Other'];
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
-const GENERIC=[['black','#1c1c1e'],['white','#f6f6f4'],['grey','#8e8e93'],['beige','#d8c3a0'],['brown','#7b5234'],['red','#c8302f'],['orange','#ec8a2f'],['yellow','#f2cf45'],['green','#3f8f53'],['blue','#3b74c4'],['navy','#1f2d55'],['purple','#7a4a9c'],['pink','#ec9ab8']];
+const GENERIC=[['black','#1c1c1e'],['white','#f6f6f4'],['grey','#8e8e93'],['beige','#d8c3a0'],['brown','#7b5234'],['red','#c8302f'],['maroon','#7a1f2e'],['orange','#ec8a2f'],['yellow','#f2cf45'],['green','#3f8f53'],['blue','#3b74c4'],['navy','#1f2d55'],['purple','#7a4a9c'],['pink','#ec9ab8']];
 const GEN_HEX=Object.fromEntries(GENERIC);
-const LEGACY={cream:'beige',lightblue:'blue',olive:'green',burgundy:'red',gold:'yellow',silver:'grey',gray:'grey',tan:'beige',khaki:'beige',maroon:'red',teal:'green',denim:'blue'};
+const LEGACY={cream:'beige',lightblue:'blue',olive:'green',burgundy:'maroon',gold:'yellow',silver:'grey',gray:'grey',tan:'beige',khaki:'beige',wine:'maroon',teal:'green',denim:'blue'};
 const genericName=c=>{c=(c||'').trim().toLowerCase();return GEN_HEX[c]?c:LEGACY[c]||c};
 const hexToRgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
 const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
@@ -23,15 +23,16 @@ function rgbToName(r,g,b){
   r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,dl=mx-mn;
   const s=dl===0?0:dl/(1-Math.abs(2*l-1));let h=0;
   if(dl){h=mx===r?((g-b)/dl)%6:mx===g?(b-r)/dl+2:(r-g)/dl+4;h=(h*60+360)%360}
-  if(l<.13)return 'black';
+  if(l<.13&&!(l>=.09&&s>=.45&&h>=200&&h<250))return 'black';
   if(s<.12||(s<.2&&l>.25&&l<.85))return l>.78?'white':l<.24?'black':'grey';
   if(l>.93&&s<.35)return 'white';
   if(h>=15&&h<50){if(s>=.6&&l>=.35&&l<=.78)return h<40?'orange':'yellow';return l<.4?'brown':'beige'}
-  if(h<15||h>=345)return l>.72?'pink':(l<.3&&s<.6?'brown':'red');
+  if(h<15||h>=345){if(l>.72)return 'pink';if(l<.33&&s>=.45)return 'maroon';return l<.3?'brown':'red'}
   if(h<75){if(l<.32)return 'green';return (s<.45&&l>.6)||l>.85?'beige':'yellow'}
   if(h<170)return 'green';
-  if(h<250)return l<.3?'navy':'blue';
+  if(h<250)return l<.32?'navy':'blue';
   if(h<290)return 'purple';
+  if(h>=320&&l<.3&&s>=.35)return 'maroon';
   return 'pink';
 }
 const hexToName=h=>rgbToName(...hexToRgb(h));
@@ -202,30 +203,29 @@ async function repairCutout(blob){
   g.putImageData(img,0,0);
   return{blob:await new Promise(r=>c.toBlob(r,'image/png')),fixed:todo.length};
 }
-let TJS=null;
-async function loadT(){if(!TJS){TJS=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js');TJS.env.allowLocalModels=false}return TJS}
-let RB=null;
-async function removeBg(blob,status){
-  if(!RB){
-    status('Downloading the cut-out tool. This happens once and is about 45 MB, so Wi-Fi helps…');
-    const T=await loadT();
-    const model=await T.AutoModel.from_pretrained('briaai/RMBG-1.4',{config:{model_type:'custom'}});
-    const processor=await T.AutoProcessor.from_pretrained('briaai/RMBG-1.4',{config:{do_normalize:true,do_pad:false,do_rescale:true,do_resize:true,image_mean:[0.5,0.5,0.5],feature_extractor_type:'ImageFeatureExtractor',image_std:[1,1,1],resample:2,rescale_factor:0.00392156862745098,size:{width:1024,height:1024}}});
-    RB={T,model,processor};
+// The models run in a background worker (ml-worker.js) so scrolling and drawing stay smooth while photos are processed.
+const ML_SAY={'rmbg-download':'Downloading the cut-out tool. This happens once (45–90 MB), so Wi-Fi helps…','rmbg-run':'Cutting out the background…',
+  'clip-download':'Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…','clip-run':'Recognizing the item…'};
+let MLW=null,mlSeq=0;const mlJobs=new Map();
+function ml(op,args,status){
+  if(!MLW){
+    MLW=new Worker('ml-worker.js',{type:'module'});
+    MLW.onmessage=e=>{const{id,status:st,ok,result,error}=e.data,j=mlJobs.get(id);if(!j)return;
+      if(st){j.status&&j.status(ML_SAY[st]||st);return}
+      mlJobs.delete(id);ok?j.res(result):j.rej(new Error(error))};
+    MLW.onerror=e=>{console.error('ml worker',e);for(const j of mlJobs.values())j.rej(new Error('worker failed'));mlJobs.clear();MLW=null};
   }
-  status('Cutting out the background…');
-  const url=URL.createObjectURL(blob);
-  try{
-    const image=await RB.T.RawImage.fromURL(url);
-    const{pixel_values}=await RB.processor(image);
-    const{output}=await RB.model({input:pixel_values});
-    const mask=await RB.T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(image.width,image.height);
-    const c=document.createElement('canvas');c.width=image.width;c.height=image.height;const g=c.getContext('2d');
-    g.drawImage(await loadImage(url),0,0,c.width,c.height);
-    const alpha=Uint8Array.from(mask.data);cleanAlpha(alpha,c.width,c.height);
-    const d=g.getImageData(0,0,c.width,c.height);for(let i=0;i<alpha.length;i++)d.data[4*i+3]=alpha[i];g.putImageData(d,0,0);
-    return await trimToBlob(c);
-  }finally{URL.revokeObjectURL(url)}
+  return new Promise((res,rej)=>{const id=++mlSeq;mlJobs.set(id,{res,rej,status});MLW.postMessage({id,op,args})});
+}
+const yieldUI=()=>new Promise(r=>setTimeout(r,0));
+async function removeBg(blob,status){
+  const{mask,w,h}=await ml('rmbg',{blob},status);
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+  const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+  g.drawImage(im,0,0,w,h);await yieldUI();
+  cleanAlpha(mask,w,h);await yieldUI();
+  const d=g.getImageData(0,0,w,h);for(let i=0;i<mask.length;i++)d.data[4*i+3]=mask[i];g.putImageData(d,0,0);
+  return await trimToBlob(c);
 }
 
 /* ---------- auto-detect: type (on-device CLIP), colour (pixels), name ---------- */
@@ -237,20 +237,12 @@ const TYPE_PHRASE={'Tops':'a top such as a t-shirt, shirt or blouse','Tank tops'
 const SINGULAR={'Tops':'top','Tank tops':'tank top','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
   'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'shoes','Heels':'heels','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
   'Jewelry':'jewelry','Activewear':'activewear','Other':'item'};
-let CLIP=null;
-async function loadClip(status){
-  if(CLIP)return CLIP;
-  status&&status('Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…');
-  const T=await loadT(),M='Xenova/clip-vit-base-patch32';
-  const[tok,textModel,proc,vision]=await Promise.all([T.AutoTokenizer.from_pretrained(M),T.CLIPTextModelWithProjection.from_pretrained(M),T.AutoProcessor.from_pretrained(M),T.CLIPVisionModelWithProjection.from_pretrained(M)]);
-  CLIP={T,tok,textModel,proc,vision,cache:{}};return CLIP;
-}
+const CLIP={cache:{}};
 // text embeddings for a list of prompts, cached by key
 async function clipText(key,prompts){
-  const C=CLIP;if(C.cache[key])return C.cache[key];
-  const{text_embeds}=await C.textModel(C.tok(prompts,{padding:true,truncation:true}));
-  const dim=text_embeds.dims[1],te=text_embeds.data;
-  return C.cache[key]={dim,te,n:prompts.length,norms:prompts.map((_,i)=>Math.hypot(...te.subarray(i*dim,(i+1)*dim)))};
+  if(CLIP.cache[key])return CLIP.cache[key];
+  const{te,dim}=await ml('text',{prompts});
+  return CLIP.cache[key]={dim,te,n:prompts.length,norms:prompts.map((_,i)=>Math.hypot(...te.subarray(i*dim,(i+1)*dim)))};
 }
 function clipProbs(img,T){
   const s=[];for(let i=0;i<T.n;i++){let d=0;for(let k=0;k<T.dim;k++)d+=img.ie[k]*T.te[i*T.dim+k];s.push(d/(img.norm*T.norms[i]))}
@@ -262,10 +254,7 @@ async function flatOnWhite(blob){
   return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
 }
 async function embedImage(blob,status){
-  const C=await loadClip(status);status&&status('Recognizing the item…');
-  const url=URL.createObjectURL(await flatOnWhite(blob));
-  try{const{pixel_values}=await C.proc(await C.T.RawImage.fromURL(url));const{image_embeds}=await C.vision({pixel_values});const ie=image_embeds.data;return{ie,norm:Math.hypot(...ie)}}
-  finally{URL.revokeObjectURL(url)}
+  const ie=await ml('image',{blob:await flatOnWhite(blob)},status);return{ie,norm:Math.hypot(...ie)};
 }
 async function detectType(blob,status,img){
   img=img||await embedImage(blob,status);
@@ -347,7 +336,7 @@ async function detectColour(blob,cutout){
 // colour word for titles: plain name, with light/dark where it helps (light blue, dark green, light grey)
 function colourWord(col){
   if(!col)return '';const[r,g,b]=hexToRgb(col.hex||GEN_HEX[col.name]||'#808080');const l=(Math.max(r,g,b)+Math.min(r,g,b))/510;
-  if(['white','black','navy','brown','beige'].includes(col.name))return col.name;
+  if(['white','black','navy','maroon','brown','beige'].includes(col.name))return col.name;
   if(col.name==='grey')return l>.68?'light grey':l<.36?'dark grey':'grey';
   return l>.72?'light '+col.name:l<.28?'dark '+col.name:col.name;
 }
@@ -845,6 +834,7 @@ function bulkSheet(){
   const msg=sh.querySelector('#bMsg'),list=sh.querySelector('#bList');
   const autoEl=sh.querySelector('#bAuto');
   autoEl.addEventListener('change',()=>ls.set('closet.autoDetect',autoEl.checked?null:'off'));
+  ml('warm',{rmbg:true,clip:autoEl.checked}).catch(e=>console.warn('warm',e));
   const created=[];
   sh.querySelector('#bFiles').addEventListener('change',async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
@@ -855,13 +845,14 @@ function bulkSheet(){
       const row=rows[i],st=t=>{row.querySelector('small').textContent=t};
       msg.textContent=`Working on ${i+1} of ${files.length}. Keep the app open until it finishes.`;
       let r;try{st('Preparing…');r=await shrink(files[i])}catch(err){st('Skipped: not a supported photo');continue}
+      const pv=URL.createObjectURL(r.blob);row.querySelector('.mini').innerHTML=`<img src="${pv}" alt="">`;
       if(cut&&!r.cutout){st('Removing background…');try{r={blob:await removeBg(r.blob,m=>msg.textContent=m),cutout:true}}catch(err){console.warn(err)}}
       let g={name:'New piece',type:'Other',group:'Other',colour:'',colourHex:null,colours2:[]};
       if(auto){st('Recognizing…');try{g=await autoDetect(r.blob,r.cutout,m=>msg.textContent=m)}catch(err){console.warn(err)}}
       try{
         const imageId=await addImage(r.blob),iid=newId();
         await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now()});
-        created.push(iid);
+        created.push(iid);URL.revokeObjectURL(pv);
         row.innerHTML=`<span class="mini ${r.cutout?'cut':''}">${img(imageId)}</span><span class="tx"><input data-bname="${iid}" value="${esc(g.name)}" aria-label="Name"><select data-btype="${iid}" aria-label="Type">${typeOptions(g.type)}</select></span><input class="bprice" data-bprice="${iid}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$" aria-label="Price">`;
       }catch(err){console.error(err);st(err?.name==='QuotaExceededError'?'Skipped: this device is out of space':'Skipped: couldn’t save')}
     }
@@ -917,6 +908,7 @@ function itemSheet(id){
         <label class="btn sm pickbtn">Custom<input type="color" id="mainPick" aria-label="Choose an exact colour"></label>
         <button class="btn sm" type="button" id="fromPhoto">From photo</button></div>
       <div class="swatches" role="group" aria-label="Main colour">${GENERIC.map(([n,h])=>`<button type="button" data-main="${n}" style="background:${h}" aria-label="${n}" title="${n}"></button>`).join('')}</div>
+      <p class="muted" style="margin:0;font-size:13px">Pick the exact shade with Custom or From photo, then tap a name to call it what you like.</p>
       <div class="eyedrop" id="eyedrop" hidden><p class="muted" style="margin:0;font-size:13px">Tap the part of the photo that shows the main colour.</p><canvas id="eyeCanvas"></canvas><button class="linkbtn" type="button" id="eyeCancel">Cancel</button></div>
     </div>
     <div class="field"><span class="lbl">Secondary colours <small class="muted" style="text-transform:none;letter-spacing:0">(tap all that apply)</small></span>
@@ -958,7 +950,7 @@ function itemSheet(id){
   });
   const tSel=sh.querySelector('#fType');tSel.addEventListener('change',()=>{sh.querySelector('#newTypeRow').hidden=tSel.value!=='__new'});
   // colour state: main (plain name + exact shade) and a set of secondary names
-  const COL={name:genericName(it?.colour)||'',hex:it?.colourHex||null,sec:new Set(it?.colours2||[])};
+  const COL={name:genericName(it?.colour)||'',hex:it?.colourHex||null,named:!!it?.colourNamed,sec:new Set(it?.colours2||[])};
   function paintCol(){
     const sw=COL.hex||GEN_HEX[COL.name]||okColour(COL.name);
     sh.querySelector('#mainSw').style.background=sw||'transparent';sh.querySelector('#mainSw').classList.toggle('empty',!sw);
@@ -968,9 +960,9 @@ function itemSheet(id){
     sh.querySelectorAll('[data-sec]').forEach(b=>b.setAttribute('aria-pressed',COL.sec.has(b.dataset.sec)));
     sh.querySelector('#secNames').textContent=COL.sec.size?[...COL.sec].join(', '):'None';
   }
-  sh.querySelectorAll('[data-main]').forEach(b=>b.addEventListener('click',()=>{const n=b.dataset.main;if(COL.name===n&&!COL.hex){COL.name=''}else{COL.name=n;COL.hex=null;COL.sec.delete(n)}paintCol()}));
+  sh.querySelectorAll('[data-main]').forEach(b=>b.addEventListener('click',()=>{const n=b.dataset.main;if(COL.name===n&&COL.named){COL.name='';COL.hex=null;COL.named=false}else{COL.name=n;COL.named=true;COL.sec.delete(n)}paintCol()}));
   sh.querySelectorAll('[data-sec]').forEach(b=>b.addEventListener('click',()=>{const n=b.dataset.sec;COL.sec.has(n)?COL.sec.delete(n):COL.sec.add(n);paintCol()}));
-  sh.querySelector('#mainPick').addEventListener('input',e=>{COL.hex=e.target.value;COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol()});
+  sh.querySelector('#mainPick').addEventListener('input',e=>{COL.hex=e.target.value;if(!COL.named)COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol()});
   const eye=sh.querySelector('#eyedrop'),ec=sh.querySelector('#eyeCanvas');
   sh.querySelector('#fromPhoto').addEventListener('click',async()=>{
     const st=P.front.blob||P.back.blob?(P.front.blob?P.front:P.back):(P.front.id?P.front:P.back.id?P.back:null);
@@ -986,8 +978,8 @@ function itemSheet(id){
     const r=ec.getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*ec.width),y=Math.round((e.clientY-r.top)/r.height*ec.height);
     const k=3,d=ec.getContext('2d').getImageData(clamp(x-k,0,ec.width-1),clamp(y-k,0,ec.height-1),k*2+1,k*2+1).data;
     let R=0,G=0,B=0,n=0;for(let i=0;i<d.length;i+=4){R+=d[i];G+=d[i+1];B+=d[i+2];n++}
-    COL.hex=rgbToHex(R/n,G/n,B/n);COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol();eye.hidden=true;
-    toast(`Main colour set to ${COL.name}`);
+    COL.hex=rgbToHex(R/n,G/n,B/n);if(!COL.named)COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol();eye.hidden=true;
+    toast(COL.named?`Shade picked. Still called ${COL.name}.`:`Main colour set to ${COL.name}`);
   });
   paintCol();
   const save=sh.querySelector('#save');
@@ -996,7 +988,7 @@ function itemSheet(id){
     let type=tSel.value,group=GROUP_OF[type]||it?.group||'Other';
     if(type==='__new'){type=sh.querySelector('#fNewType').value.trim();group=sh.querySelector('#fGroup').value;if(!type){sh.querySelector('#fNewType').focus();toast('Name the new type.');return}}
     const pv=sh.querySelector('#fPrice').value;
-    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:COL.name,colourHex:COL.hex||null,colours2:[...COL.sec].filter(n=>n!==COL.name),style:sh.querySelector('#fSty').value.trim(),createdAt:it?.createdAt||Date.now()};
+    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:COL.name,colourHex:COL.hex||null,colourNamed:COL.named&&!!COL.name,colours2:[...COL.sec].filter(n=>n!==COL.name),style:sh.querySelector('#fSty').value.trim(),createdAt:it?.createdAt||Date.now()};
     const drop=[];
     for(const[k,idKey,cutKey]of[['front','imageId','cutout'],['back','backImageId','backCutout']]){
       const st=P[k],oldId=it?.[idKey]||null;
@@ -1184,7 +1176,7 @@ async function refitCutouts(){
       }catch(e){console.warn('refit',e)}
     }
     // items saved as grey: recheck the colour with the shading-aware detector (fixes white/black read as grey)
-    if((it.fit||0)<4&&genericName(it.colour)==='grey'&&v.imageId){
+    if((it.fit||0)<4&&!it.colourNamed&&genericName(it.colour)==='grey'&&v.imageId){
       try{const b=await idbGet('images',v.imageId);const col=b&&await detectColour(b,v.cutout);
         if(col&&col.name!=='grey'){const oldWord=/^(light |dark )?grey /i,cap=w=>w[0].toUpperCase()+w.slice(1);
           v.colour=col.name;v.colourHex=col.hex;v.colours2=(v.colours2||[]).filter(c=>c!==col.name);
@@ -1208,7 +1200,7 @@ render();
     S.deleted=new Map(Object.entries((await idbGet('meta','deleted'))||{}));
     // re-name colours from their saved exact shade with the current rules (fixes earlier beige→orange guesses)
     for(const[iid,it]of S.items){
-      if(!it.colourHex)continue;const nn=hexToName(it.colourHex),old=genericName(it.colour);if(nn===old)continue;
+      if(!it.colourHex||it.colourNamed)continue;const nn=hexToName(it.colourHex),old=genericName(it.colour);if(nn===old)continue;
       const cap=w=>w?w[0].toUpperCase()+w.slice(1):w,word=SINGULAR[it.type]||(it.type||'').toLowerCase();
       const v={...it,colour:nn,colours2:(it.colours2||[]).filter(c=>c!==nn),updatedAt:Date.now()};
       if(it.name===`${cap(old)} ${word}`)v.name=`${cap(nn)} ${word}`;

@@ -16,7 +16,7 @@ A virtual closet you can add to your iPhone home screen. Add clothes with front 
 
 ## Cut-out photos
 
-"Remove background" runs on your device using the open RMBG-1.4 model (downloaded once, about 45 MB). You can also touch and hold a piece of clothing in the iPhone Photos app, tap Share → Save Image, and choose that cut-out picture.
+Backgrounds are removed automatically on your device using the open RMBG-1.4 model (downloaded once, about 45 MB). It runs in a background worker so the app stays smooth while it works.
 
 ## Credits
 
@@ -55,5 +55,6 @@ A virtual closet you can add to your iPhone home screen. Add clothes with front 
 
 - `index.html`: page and styles
 - `app.js`: app logic, on-device storage and GitHub sync
+- `ml-worker.js`: runs the background-removal and recognition models off the main thread
 - `sw.js`: offline support
 - `manifest.webmanifest` and `icon-*.png`: home-screen app settings
