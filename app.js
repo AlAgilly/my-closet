@@ -154,7 +154,7 @@ async function shrink(file){
   const max=1200,s=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));
   const c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*s);c.height=Math.round(im.naturalHeight*s);
   c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
-  if(hasAlpha(c))return{blob:await trimToBlob(c),cutout:true};
+  if(hasAlpha(c)){const r=await repairCutout(await trimToBlob(c));return{blob:r.blob,cutout:true}}
   return{blob:await new Promise(r=>c.toBlob(r,'image/jpeg',.85)),cutout:false};
 }
 // Fix see-through specks inside a cut-out. `a` is the alpha channel (one byte per pixel).
@@ -763,23 +763,21 @@ function bulkSheet(){
   const closets=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
   const defCloset=S.closet!=='all'&&S.closets.has(S.closet)?S.closet:MAIN;
   const sh=openSheet(`${head('Add many pieces')}
-    <p class="muted" style="margin:0">Choose several photos, one piece of clothing per photo. Each photo becomes its own item.</p>
+    <p class="muted" style="margin:0">Choose several photos, one piece of clothing per photo. Each photo becomes its own item, with its background removed.</p>
     ${closets.length>1?`<div class="field"><label for="bCloset">Add to closet</label><select id="bCloset">${closets.map(([cid,c])=>`<option value="${cid}" ${cid===defCloset?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`:''}
-    <label class="check"><input type="checkbox" id="bCut" ${ls.get('closet.bulkCut')!=='off'?'checked':''}> Remove backgrounds</label>
     <label class="check"><input type="checkbox" id="bAuto" ${ls.get('closet.autoDetect')!=='off'?'checked':''}> Name and sort them automatically</label>
     <label class="btn primary filebtn" id="bPick">Choose photos<input type="file" accept="image/*" multiple id="bFiles"></label>
     <p class="muted" id="bMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
     <div class="list" id="bList"></div>
     <div class="btns" id="bEnd" hidden><button class="btn primary" type="button" id="bSave">Save and close</button></div>`);
   const msg=sh.querySelector('#bMsg'),list=sh.querySelector('#bList');
-  const cutEl=sh.querySelector('#bCut'),autoEl=sh.querySelector('#bAuto');
-  cutEl.addEventListener('change',()=>ls.set('closet.bulkCut',cutEl.checked?null:'off'));
+  const autoEl=sh.querySelector('#bAuto');
   autoEl.addEventListener('change',()=>ls.set('closet.autoDetect',autoEl.checked?null:'off'));
   const created=[];
   sh.querySelector('#bFiles').addEventListener('change',async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
-    const closetId=sh.querySelector('#bCloset')?.value||defCloset,cut=cutEl.checked,auto=autoEl.checked;
-    sh.querySelector('#bPick').hidden=true;cutEl.disabled=autoEl.disabled=true;
+    const closetId=sh.querySelector('#bCloset')?.value||defCloset,cut=true,auto=autoEl.checked;
+    sh.querySelector('#bPick').hidden=true;autoEl.disabled=true;
     const rows=files.map((f,i)=>{const r=document.createElement('div');r.className='brow';r.innerHTML=`<span class="mini"></span><span class="tx"><b>Photo ${i+1}</b><small>Waiting…</small></span>`;list.append(r);return r});
     for(let i=0;i<files.length;i++){
       const row=rows[i],st=t=>{row.querySelector('small').textContent=t};
@@ -829,8 +827,6 @@ function itemSheet(id){
       <div class="pslot" data-slot="${k}">
         <label class="photo"><div class="ph${cut&&URLS.has(pid)?' cut':''}" data-prev>${pid&&URLS.has(pid)?img(pid):`<span class="hint">Add ${l.toLowerCase()} photo</span>`}</div><input type="file" accept="image/*" data-file aria-label="${l} photo"></label>
         <div class="plabel">${l}</div>
-        <button class="btn sm" type="button" data-cut ${pid&&URLS.has(pid)&&!cut?'':'hidden'}>Remove background</button>
-        <button class="btn sm" type="button" data-fix ${pid&&URLS.has(pid)&&cut?'':'hidden'}>Clean up specks</button>
         <button class="linkbtn" type="button" data-clear ${pid&&URLS.has(pid)?'':'hidden'}>Remove photo</button>
       </div>`).join('')}</div>
     <p class="muted" id="cutMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
@@ -863,13 +859,18 @@ function itemSheet(id){
   const P={front:{id:it?.imageId||null,cutout:!!it?.cutout,blob:null},back:{id:it?.backImageId||null,cutout:!!it?.backCutout,blob:null}};
   const cutMsg=sh.querySelector('#cutMsg');
   sh.querySelectorAll('[data-slot]').forEach(slot=>{
-    const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),cutB=slot.querySelector('[data-cut]'),fixB=slot.querySelector('[data-fix]'),clr=slot.querySelector('[data-clear]');
+    const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),clr=slot.querySelector('[data-clear]');
     const show=()=>{const has=st.blob||st.id;prev.className='ph'+(has&&st.cutout?' cut':'');
       prev.innerHTML=st.blob?`<img src="${URL.createObjectURL(st.blob)}" alt="">`:st.id?img(st.id):`<span class="hint">Add ${k} photo</span>`;
-      cutB.hidden=!has||st.cutout;fixB.hidden=!has||!st.cutout;clr.hidden=!has;cutMsg.textContent=''};
+      clr.hidden=!has;cutMsg.textContent=''};
     slot.querySelector('[data-file]').addEventListener('change',async e=>{
       const f=e.target.files[0];e.target.value='';if(!f)return;
       try{const r=await shrink(f);st.blob=r.blob;st.cutout=r.cutout;show()}catch(err){toast('That file type isn’t supported. Try a JPEG or PNG.');return}
+      if(!st.cutout){
+        const before=st.blob;
+        try{const out=await removeBg(before,m=>cutMsg.textContent=m);if(st.blob===before){st.blob=out;st.cutout=true;show()}}
+        catch(err){console.error(err);cutMsg.textContent='Couldn’t remove the background on this photo. Check your connection and choose the photo again.'}
+      }
       const nameEl=sh.querySelector('#fName');
       if(k==='front'&&!nameEl.value.trim()&&ls.get('closet.autoDetect')!=='off'){
         try{
@@ -882,20 +883,6 @@ function itemSheet(id){
       }
     });
     clr.addEventListener('click',()=>{st.blob=null;st.id=null;st.cutout=false;show()});
-    fixB.addEventListener('click',async()=>{
-      fixB.disabled=true;
-      try{const src=st.blob||await idbGet('images',st.id);const r=await repairCutout(src);
-        if(!r.fixed){cutMsg.textContent='No specks found in this photo.';return}
-        st.blob=r.blob;st.cutout=true;show();cutMsg.textContent=`Filled ${r.fixed.toLocaleString()} speck pixel${r.fixed===1?'':'s'}. Tap Save to keep it.`}
-      catch(err){console.error(err);cutMsg.textContent='Couldn’t clean up this photo.'}
-      finally{fixB.disabled=false}
-    });
-    cutB.addEventListener('click',async()=>{
-      cutB.disabled=true;
-      try{const src=st.blob||await idbGet('images',st.id);st.blob=await removeBg(src,m=>cutMsg.textContent=m);st.cutout=true;show();cutMsg.textContent='Background removed. Tap Save to keep it.'}
-      catch(err){console.error(err);cutMsg.textContent=err?.code==='empty'?'Couldn’t find the item in that photo. Try a photo with the piece on a plain background.':'The cut-out tool couldn’t run here. On iPhone you can touch and hold the item in the Photos app, tap Share → Save Image, then choose that picture.'}
-      finally{cutB.disabled=false}
-    });
   });
   const tSel=sh.querySelector('#fType');tSel.addEventListener('change',()=>{sh.querySelector('#newTypeRow').hidden=tSel.value!=='__new'});
   // colour state: main (plain name + exact shade) and a set of secondary names
@@ -1097,26 +1084,39 @@ function syncSheet(){
   }
 }
 
-// Re-crop cut-outs saved before the haze fix so every item fills its tile. Runs once per photo.
+// Once per item: remove the background from photos that still have one, and tidy older cut-outs
+// (fill see-through specks, re-crop so the item fills its tile). fit level 3.
 async function refitCutouts(){
-  let changed=0;
+  let changed=0,bgDone=0;
+  const bgTotal=[...S.items.values()].filter(it=>(it.fit||0)<3).reduce((n,it)=>n+(it.imageId&&!it.cutout?1:0)+(it.backImageId&&!it.backCutout?1:0),0);
   for(const[iid,it]of[...S.items]){
-    if(it.fit>=1)continue;
-    const v={...it,fit:1};
+    if((it.fit||0)>=3)continue;
+    const v={...it,fit:3};let failed=false;
     for(const[idKey,cutKey]of[['imageId','cutout'],['backImageId','backCutout']]){
-      const id=it[idKey];if(!id||!it[cutKey])continue;
+      const id=it[idKey];if(!id)continue;
       const blob=await idbGet('images',id);if(!blob)continue;
+      if(!it[cutKey]){
+        bgDone++;S.notice=`Removing backgrounds from your photos (${bgDone} of ${bgTotal}). Keep the app open.`;render();
+        try{v[idKey]=await addImage(await removeBg(blob,()=>{}));v[cutKey]=true;await dropImage(id)}catch(e){console.warn('auto background',e);failed=true}
+        continue;
+      }
+      if((it.fit||0)>=2)continue;
       try{
-        const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
-        const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);
+        let src=blob,touched=false;
+        const rep=await repairCutout(blob);if(rep.fixed){src=rep.blob;touched=true}
+        const im=await loadImage(URL.createObjectURL(src));
+        const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);URL.revokeObjectURL(im.src);
         const out=await trimToBlob(c);const om=await loadImage(URL.createObjectURL(out));URL.revokeObjectURL(om.src);
-        if(om.naturalWidth*om.naturalHeight<c.width*c.height*.9){v[idKey]=await addImage(out);await dropImage(id)}
+        if(om.naturalWidth*om.naturalHeight<c.width*c.height*.9){src=out;touched=true}
+        if(touched){v[idKey]=await addImage(src);await dropImage(id)}
       }catch(e){console.warn('refit',e)}
     }
     if(!S.items.has(iid))continue;
+    if(failed)v.fit=2; // try the background again next time the app opens
     v.updatedAt=Date.now();await idbPut('items',iid,v);S.items.set(iid,v);changed++;
     await new Promise(r=>setTimeout(r,0));
   }
+  if(S.notice.startsWith('Removing backgrounds'))S.notice='';
   if(changed){render();scheduleSync()}
 }
 /* ---------- boot ---------- */
