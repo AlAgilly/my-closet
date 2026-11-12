@@ -2,14 +2,14 @@
 /* My Closet: data lives in this device's IndexedDB and syncs to a private GitHub repo the user owns. */
 
 const GROUPS=[
-  ['Tops',['T-shirts','Tank tops','Shirts','Blouses','Sweaters','Hoodies','Cardigans']],
+  ['Tops',['T-shirts','Tank tops','Bodysuits','Shirts','Blouses','Sweaters','Hoodies','Cardigans']],
   ['Bottoms',['Jeans','Pants','Shorts','Skirts','Leggings','Sweatpants']],
   ['One-pieces',['Dresses','Jumpsuits']],
   ['Outerwear',['Jackets','Coats','Blazers','Vests']],
   ['Shoes',['Sneakers','Boots','Heels','Flats','Sandals','Loafers']],
   ['Bags',['Bags']],
   ['Accessories',['Hats','Jewelry','Belts','Scarves','Sunglasses','Watches']],
-  ['Other',['Activewear','Swimwear','Sleepwear','Other']]];
+  ['Other',['Activewear','Sleepwear','Other']]];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
@@ -162,13 +162,13 @@ async function removeBg(blob,status){
 }
 
 /* ---------- auto-detect: type (on-device CLIP), colour (pixels), name ---------- */
-const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Shirts':'a button-up shirt','Blouses':'a blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
+const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants','Shirts':'a button-up shirt','Blouses':'a blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
   'Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt','Leggings':'a pair of leggings','Sweatpants':'a pair of sweatpants',
   'Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
   'Sneakers':'a pair of sneakers','Boots':'a pair of boots','Heels':'a pair of high heels','Flats':'a pair of flat shoes','Sandals':'a pair of sandals','Loafers':'a pair of loafers',
   'Bags':'a handbag','Hats':'a hat','Jewelry':'a piece of jewelry','Belts':'a belt','Scarves':'a scarf','Sunglasses':'a pair of sunglasses','Watches':'a wristwatch',
-  'Swimwear':'a swimsuit','Sleepwear':'a pair of pajamas'};
-const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Shirts':'shirt','Blouses':'blouse','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
+  'Sleepwear':'a pair of pajamas'};
+const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Bodysuits':'bodysuit','Shirts':'shirt','Blouses':'blouse','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
   'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneakers','Boots':'boots','Heels':'heels','Flats':'flats','Sandals':'sandals','Loafers':'loafers',
   'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Swimwear':'swimsuit','Sleepwear':'pajamas'};
 let CLIP=null;
@@ -399,6 +399,8 @@ function render(){
   const y=window.scrollY;
   $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,shuffle:shuffleView,calendar:calendarView,stats:statsView}[S.view])();
   if(S.view==='shuffle')wireShuffle();
+  const cats=$('.cats'),selCat=cats?.querySelector('[aria-pressed="true"]');
+  if(cats&&selCat&&S.type!=='All')cats.scrollLeft=Math.max(0,selCat.offsetLeft-cats.clientWidth/2+selCat.offsetWidth/2);
   scrollTo(0,y);
 }
 function closetChips(cur,attr,extra=''){
@@ -418,14 +420,65 @@ function closetView(){
   const colours=[...new Set(all.flatMap(([,i])=>itemColours(i)))].sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99)||a.localeCompare(b));
   const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
   return top+`
+    <div class="cats" role="group" aria-label="Type">${catBtn('All','All',all.length)}${Object.keys(types).sort((a,b)=>typeRank(a)-typeRank(b)||a.localeCompare(b)).map(t=>catBtn(t,t,types[t])).join('')}</div>
     <input class="search" id="q" type="search" placeholder="Search name, type, colour, style" value="${esc(S.q)}" aria-label="Search closet">
-    <div class="chips" role="group" aria-label="Type"><button class="chip" type="button" data-type="All" aria-pressed="${S.type==='All'}">All types</button>${Object.keys(types).sort((a,b)=>typeRank(a)-typeRank(b)||a.localeCompare(b)).map(t=>`<button class="chip" type="button" data-type="${esc(t)}" aria-pressed="${S.type===t}">${esc(t)} <small>${types[t]}</small></button>`).join('')}</div>
     <div class="row">
       <select id="fColour" aria-label="Colour"><option value="">All colours</option>${colours.map(c=>`<option ${S.colour===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select id="fStyle" aria-label="Style"><option value="">All styles</option>${styles.map(c=>`<option ${S.style===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select id="fSort" aria-label="Sort">${[['new','Newest first'],['priceHi','Price: high to low'],['least','Least worn'],['longest','Not worn in longest'],['name','A–Z']].map(([v,l])=>`<option value="${v}" ${S.sort===v?'selected':''}>${l}</option>`).join('')}</select>
     </div><div id="results">${closetResults()}</div>`;
 }
+/* line icons for the type picker (24x24, stroked) */
+const ICON={
+  all:'<rect x="4" y="4" width="3.6" height="16" rx="1.6"/><rect x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/>',
+  tshirt:'<path d="M8.5 4 4 6.6l1.6 4 2-.9V20h8.8V9.7l2 .9 1.6-4L15.5 4a3.6 3.6 0 0 1-7 0z"/>',
+  bodysuit:'<path d="M9 3.2 5.4 5.2 3.6 14.5h2.3L7.6 9v6.3c0 1.6 1.2 2.6 2.4 3.4l2 1.3 2-1.3c1.2-.8 2.4-1.8 2.4-3.4V9l1.7 5.5h2.3L18.6 5.2 15 3.2a3 3 0 0 1-6 0z"/><path d="M7.6 15.3c1.6 0 3 1 4.4 4.7 1.4-3.7 2.8-4.7 4.4-4.7"/>',
+  tank:'<path d="M9 3v2.5a3 3 0 0 0 6 0V3M9 3c0 2.5-2 3.5-2 6.5V20h10V9.5C17 6.5 15 5.5 15 3"/>',
+  shirt:'<path d="M8.5 3.5 4.5 5.8 3 18.2l2.6.6L7.2 11v9h9.6v-9l1.6 7.8 2.6-.6-1.5-12.4-4-2.3"/><path d="M8.5 3.5 12 7l3.5-3.5M12 7v13M10.5 10.5h.01M10.5 14h.01"/>',
+  sweater:'<path d="M8.5 4 4.5 6 2.8 18.6h2.5L7.2 11v9h9.6v-9l1.9 7.6h2.5L19.5 6l-4-2a3.6 3.6 0 0 1-7 0z"/><path d="M7.2 17.5h9.6"/>',
+  hoodie:'<path d="M8.8 4.4 4.6 6.8 3 18.6h2.5L7.2 11v9h9.6v-9l1.7 7.6H21L19.4 6.8l-4.2-2.4"/><path d="M8.8 4.4C9 7.4 10.3 9 12 9s3-1.6 3.2-4.6A3.4 3.4 0 0 0 8.8 4.4zM10 15h4"/>',
+  cardigan:'<path d="M8.5 4 4.5 6 2.8 18.6h2.5L7.2 11v9h9.6v-9l1.9 7.6h2.5L19.5 6l-4-2"/><path d="M8.5 4 12 9.5 15.5 4M12 9.5V20M13.4 12.5h.01M13.4 15.8h.01"/>',
+  pants:'<path d="M7 3h10l1.2 18h-4.4L12 9.5 10.2 21H5.8z"/><path d="M7 6h10M12 3v6.5"/>',
+  jeans:'<path d="M7 3h10l1.2 18h-4.4L12 9.5 10.2 21H5.8z"/><path d="M7 6h10M12 3v6.5M8.3 6c.2 1.6 1 2.4 2.2 2.6M15.7 6c-.2 1.6-1 2.4-2.2 2.6"/>',
+  shorts:'<path d="M5.8 5h12.4l1.2 10.5h-5.6L12 10.5l-1.8 5H4.6z"/><path d="M5.8 7.6h12.4"/>',
+  skirt:'<path d="M8 4h8l3.4 15.5H4.6z"/><path d="M8 6.5h8M10 9.5l-1.2 10M14 9.5l1.2 10"/>',
+  leggings:'<path d="M8 3h8l.6 18h-3.1L12 9.5 10.5 21H7.4z"/><path d="M8 5.5h8"/>',
+  dress:'<path d="M9.6 3v3.2L8 9.4 4.5 20.5h15L16 9.4l-1.6-3.2V3"/><path d="M9.6 6.2h4.8M8 9.4h8"/>',
+  jumpsuit:'<path d="M9 3v4L6.8 9v4.5h2L9.4 21H11l1-7.5 1 7.5h1.6l.6-7.5h2V9L15 7V3"/><path d="M9 9h6"/>',
+  jacket:'<path d="M9 3 5 5 3 19.5h4v-1.8h10v1.8h4L19 5l-4-2-3 4.5z"/><path d="M12 7.5v10.2M9 3l1.3 5.5M15 3l-1.3 5.5M14.6 12.5h2"/>',
+  coat:'<path d="M9 3 5 5 4 21h16L19 5l-4-2-3 4.5z"/><path d="M12 7.5V21M9.8 12h.01M9.8 15.5h.01M9 3l1.3 5.5M15 3l-1.3 5.5"/>',
+  blazer:'<path d="M9 3 5 5 4 20.5h16L19 5l-4-2"/><path d="M9 3l3 9.5L15 3M12 12.5v8M14.8 15.5h2"/>',
+  vest:'<path d="M8 3 6 5.2V20h5l1-9.5 1 9.5h5V5.2L16 3l-4 6.5z"/>',
+  sneaker:'<path d="M2.8 15.6V9.8l3-.6 2.2 2.2 4-1 4.2 2.6 4.6 1.1.4 2.6v.9H2.8z"/><path d="M2.8 15.6h18.4M9 11.2l1.4 2M12 10.6l1.4 2"/>',
+  boot:'<path d="M8.2 3h6v9.6l4.6 2.2V19H7.4l.8-7z"/><path d="M7.6 16.6h11.2M8.2 6h6"/>',
+  heel:'<path d="M3 16.6c3 0 5-6.2 7.2-6.2 2 0 4 4.4 7 4.4l4 1.2v1.8H8.6"/><path d="M5.2 16.6V21M3 16.6h2.2"/>',
+  sandal:'<path d="M3.5 16.2c0-2 3.4-3.2 7.6-3.2s9.4 1 9.4 3.2v1H3.5z"/><path d="M8 13.2 10 9M14.4 13.2 13.2 9M9.6 9h4"/>',
+  flats:'<path d="M2.8 15.4c0-2 2-3.2 5.2-3.2l3 1h5.2c3 0 5 1.2 5 3.2v1H2.8z"/><path d="M8 12.4c.6 1.4 2 2 3.4 1.6"/>',
+  loafer:'<path d="M2.8 15.4c0-2.4 2.4-3.6 5.6-3.6l2.6 1h5c3.2 0 5.2 1.2 5.2 3.4v.8H2.8z"/><path d="M9.6 12.6h4.4v2h-4.4z"/>',
+  bag:'<path d="M4.6 9h14.8l-1.2 11.2H5.8z"/><path d="M8.6 9V7.2a3.4 3.4 0 0 1 6.8 0V9"/><circle cx="16.2" cy="13.4" r=".9"/>',
+  hat:'<path d="M2.8 17c0-1.1 4.1-2.1 9.2-2.1s9.2 1 9.2 2.1-4.1 1.6-9.2 1.6S2.8 18.1 2.8 17z"/><path d="M7 15.4V11a5 5 0 0 1 10 0v4.4M7 13h10"/>',
+  jewelry:'<circle cx="12" cy="14.6" r="5.6"/><path d="M9.6 8.8 12 5.2l2.4 3.6z"/>',
+  belt:'<path d="M2 10h20v4H2z"/><path d="M8.6 8.8h5.4v6.4H8.6zM11.2 12h2.8"/>',
+  scarf:'<path d="M8 3h8v6.2l-2 2V21h-3.2v-9.6L8 9z"/><path d="M8 6h8M10.8 21v-2M12.4 21v-2"/>',
+  sunglasses:'<path d="M2 10.2h20M3.6 10.2l1 4.8h5.2l1-4.8M13.2 10.2l1 4.8h5.2l1-4.8"/>',
+  watch:'<circle cx="12" cy="12" r="4.6"/><path d="M9.2 7.6 9.8 3h4.4l.6 4.6M9.2 16.4l.6 4.6h4.4l.6-4.6M12 9.8V12l1.4 1.2"/>',
+  swim:'<path d="M8 3v4c0 2 1.2 3 1.2 3L7 14h10l-2.2-4S16 9 16 7V3"/><path d="M7 14l2 6h6l2-6"/>',
+  sleep:'<path d="M19 14.5A7.2 7.2 0 1 1 9.5 5a5.8 5.8 0 0 0 9.5 9.5z"/>',
+  active:'<path d="M13.4 3 6 13.4h5.2L10.4 21l7.6-10.4h-5.2z"/>',
+  other:'<path d="M12 7a2 2 0 1 1 2-2c0 1-2 1.5-2 3v1"/><path d="M12 9 3 16a1.2 1.2 0 0 0 .8 2.1h16.4A1.2 1.2 0 0 0 21 16z"/>'};
+const TYPE_ICON={'T-shirts':'tshirt','Tank tops':'tank','Bodysuits':'bodysuit','Shirts':'shirt','Blouses':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'pants',
+  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneaker','Boots':'boot','Heels':'heel','Flats':'flats','Sandals':'sandal','Loafers':'loafer',
+  'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Activewear':'active','Swimwear':'swim','Sleepwear':'sleep','Other':'other'};
+const GROUP_ICON={Tops:'tshirt',Bottoms:'pants','One-pieces':'dress',Outerwear:'jacket',Shoes:'sneaker',Bags:'bag',Accessories:'hat',Other:'other'};
+function typeIcon(t){
+  if(t==='All')return ICON.all;
+  if(TYPE_ICON[t])return ICON[TYPE_ICON[t]];
+  const g=[...S.items.values()].find(i=>i.type===t)?.group;return ICON[GROUP_ICON[g]||'other'];
+}
+function catBtn(val,label,count){
+  return `<button class="cat" type="button" data-type="${esc(val)}" aria-pressed="${S.type===val}" aria-label="${esc(label)}, ${count}"><span class="cic"><svg viewBox="0 0 24 24" aria-hidden="true">${typeIcon(val)}</svg><span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
+}
+
 function itemCard(id,i,W){
   const r=W[id],l=last(r),c=swatchOf(i),c2=(i.colours2||[]).map(n=>GEN_HEX[n]||okColour(n)).filter(Boolean);
   return `<button class="card" type="button" data-item="${id}">
