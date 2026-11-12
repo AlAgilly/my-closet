@@ -24,8 +24,8 @@ function rgbToName(r,g,b){
   const s=dl===0?0:dl/(1-Math.abs(2*l-1));let h=0;
   if(dl){h=mx===r?((g-b)/dl)%6:mx===g?(b-r)/dl+2:(r-g)/dl+4;h=(h*60+360)%360}
   if(l<.13)return 'black';
-  if(s<.12||(s<.2&&l>.25&&l<.85))return l>.86?'white':l<.22?'black':'grey';
-  if(l>.9&&(s<.3||h<35||h>=75))return 'white';
+  if(s<.12||(s<.2&&l>.25&&l<.85))return l>.78?'white':l<.24?'black':'grey';
+  if(l>.93&&s<.35)return 'white';
   if(h>=15&&h<50){if(s>=.6&&l>=.35&&l<=.78)return h<40?'orange':'yellow';return l<.4?'brown':'beige'}
   if(h<15||h>=345)return l>.72?'pink':(l<.3&&s<.6?'brown':'red');
   if(h<75){if(l<.32)return 'green';return (s<.45&&l>.6)||l>.85?'beige':'yellow'}
@@ -243,49 +243,121 @@ async function loadClip(status){
   status&&status('Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…');
   const T=await loadT(),M='Xenova/clip-vit-base-patch32';
   const[tok,textModel,proc,vision]=await Promise.all([T.AutoTokenizer.from_pretrained(M),T.CLIPTextModelWithProjection.from_pretrained(M),T.AutoProcessor.from_pretrained(M),T.CLIPVisionModelWithProjection.from_pretrained(M)]);
-  const types=Object.keys(TYPE_PHRASE);
-  const{text_embeds}=await textModel(tok(types.map(t=>`a product photo of ${TYPE_PHRASE[t]}`),{padding:true,truncation:true}));
-  const dim=text_embeds.dims[1],te=text_embeds.data,norms=types.map((_,i)=>Math.hypot(...te.subarray(i*dim,(i+1)*dim)));
-  CLIP={T,proc,vision,types,dim,te,norms};return CLIP;
+  CLIP={T,tok,textModel,proc,vision,cache:{}};return CLIP;
+}
+// text embeddings for a list of prompts, cached by key
+async function clipText(key,prompts){
+  const C=CLIP;if(C.cache[key])return C.cache[key];
+  const{text_embeds}=await C.textModel(C.tok(prompts,{padding:true,truncation:true}));
+  const dim=text_embeds.dims[1],te=text_embeds.data;
+  return C.cache[key]={dim,te,n:prompts.length,norms:prompts.map((_,i)=>Math.hypot(...te.subarray(i*dim,(i+1)*dim)))};
+}
+function clipProbs(img,T){
+  const s=[];for(let i=0;i<T.n;i++){let d=0;for(let k=0;k<T.dim;k++)d+=img.ie[k]*T.te[i*T.dim+k];s.push(d/(img.norm*T.norms[i]))}
+  const m=Math.max(...s),e=s.map(x=>Math.exp((x-m)*100)),z=e.reduce((a,b)=>a+b,0);return e.map(v=>v/z);
 }
 async function flatOnWhite(blob){
   const im=await loadImage(URL.createObjectURL(blob));const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;
   const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);URL.revokeObjectURL(im.src);
   return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
 }
-async function detectType(blob,status){
+async function embedImage(blob,status){
   const C=await loadClip(status);status&&status('Recognizing the item…');
   const url=URL.createObjectURL(await flatOnWhite(blob));
-  try{
-    const{pixel_values}=await C.proc(await C.T.RawImage.fromURL(url));
-    const{image_embeds}=await C.vision({pixel_values});const ie=image_embeds.data,inorm=Math.hypot(...ie);
-    let best=0,bestS=-1;
-    C.types.forEach((t,i)=>{let s=0;for(let k=0;k<C.dim;k++)s+=ie[k]*C.te[i*C.dim+k];s/=inorm*C.norms[i];if(s>bestS){bestS=s;best=i}});
-    return C.types[best];
-  }finally{URL.revokeObjectURL(url)}
+  try{const{pixel_values}=await C.proc(await C.T.RawImage.fromURL(url));const{image_embeds}=await C.vision({pixel_values});const ie=image_embeds.data;return{ie,norm:Math.hypot(...ie)}}
+  finally{URL.revokeObjectURL(url)}
 }
-// Most common colour among the item's pixels (solid pixels for cut-outs, the middle of the photo otherwise), mapped to the nearest named colour.
+async function detectType(blob,status,img){
+  img=img||await embedImage(blob,status);
+  const types=Object.keys(TYPE_PHRASE),T=await clipText('types',types.map(t=>`a product photo of ${TYPE_PHRASE[t]}`));
+  const p=clipProbs(img,T);return types[p.indexOf(Math.max(...p))];
+}
+
+/* details for more descriptive names. base = index of the "nothing special" option (left out of the name);
+   word = the option replaces the item word (e.g. sneakers instead of shoes) */
+const A={
+  pat:{p:['a plain solid colour {t}','a striped {t}','a plaid {t}','a floral print {t}','a {t} with a big graphic print or logo','a polka dot {t}','a leopard print {t}'],w:['','striped','plaid','floral','graphic','polka-dot','leopard-print'],base:0},
+  mat:{p:['a plain cotton {t}','a ribbed knit {t}','a chunky cable knit {t}','a denim {t}','a leather {t}','a shiny satin {t}','a lace {t}','a fuzzy fleece {t}','a corduroy {t}','a sparkly sequin {t}'],w:['','ribbed','cable-knit','denim','leather','satin','lace','fleece','corduroy','sequin'],base:0},
+  crop:{p:['a regular length {t}','a cropped {t} that shows the midriff'],w:['','cropped'],base:0},
+  sleeve:{p:['a short sleeve {t}','a long sleeve {t}','a sleeveless {t}'],w:['short-sleeve','long-sleeve','sleeveless'],base:null},
+  neck:{p:['a crew neck {t}','a v-neck {t}','a square neck {t}','a turtleneck {t}','a collared {t}','an off-the-shoulder {t}'],w:['','v-neck','square-neck','turtleneck','collared','off-shoulder'],base:0},
+  leg:{p:['straight leg {t}','wide leg {t}','skinny {t}','flared bootcut {t}','cargo {t} with side pockets','baggy loose {t}'],w:['straight-leg','wide-leg','skinny','flared','cargo','baggy'],base:null},
+  len:{p:['a short mini {t}','a knee length midi {t}','a long ankle length maxi {t}'],w:['mini','midi','maxi'],base:null},
+  zip:{p:['a pullover {t}','a zip-up {t} with a front zipper'],w:['','zip-up'],base:0},
+  jacket:{p:['a plain jacket','a quilted puffer jacket','a bomber jacket','a windbreaker jacket','an oversized shirt jacket'],w:['','puffer','bomber','windbreaker','shacket'],base:0},
+  coat:{p:['a wool coat','a belted trench coat','a quilted puffer coat','a fuzzy teddy coat'],w:['wool','trench','puffer','teddy'],base:null},
+  foot:{p:['a pair of sneakers','a pair of boots','a pair of loafers','a pair of sandals','a pair of ballet flats','a pair of slippers'],w:['sneakers','boots','loafers','sandals','flats','slippers'],word:true},
+  heels:{p:['a pair of pumps','a pair of strappy heeled sandals','a pair of heeled boots','a pair of mules'],w:['pumps','strappy heels','heeled boots','mules'],word:true},
+  bag:{p:['a tote bag','a shoulder bag','a crossbody bag','a small clutch','a backpack','a top handle handbag'],w:['tote','shoulder bag','crossbody bag','clutch','backpack','handbag'],word:true},
+  hat:{p:['a baseball cap','a knit beanie','a bucket hat','a wide brim sun hat','a fedora'],w:['cap','beanie','bucket hat','sun hat','fedora'],word:true},
+  jewel:{p:['a necklace','a pair of earrings','a ring','a bracelet','a wristwatch'],w:['necklace','earrings','ring','bracelet','watch'],word:true},
+  glass:{p:['a pair of sunglasses with dark lenses','a pair of clear eyeglasses'],w:['sunglasses','glasses'],word:true},
+  active:{p:['a sports bra','a pair of gym leggings','a pair of athletic shorts','a workout top','a matching two piece activewear set'],w:['sports bra','leggings','athletic shorts','workout top','activewear set'],word:true},
+  vest:{p:['a suit waistcoat','a quilted puffer vest','a knit sweater vest'],w:['waistcoat','puffer vest','sweater vest'],word:true}};
+const DETAILS={Tops:['pat','crop','mat','sleeve','neck'],'Tank tops':['pat','crop','mat','neck'],Bodysuits:['pat','mat','sleeve','neck'],Sweaters:['pat','crop','mat','neck'],
+  Hoodies:['pat','crop','zip','mat'],Cardigans:['pat','crop','mat'],Jeans:['leg'],Pants:['pat','mat','leg'],Shorts:['pat','mat'],Skirts:['pat','mat','len'],Overalls:['mat'],
+  Dresses:['pat','mat','len','neck'],Jumpsuits:['pat','mat'],Jackets:['mat','jacket','crop'],Coats:['coat'],Blazers:['pat','mat'],Vests:['vest'],Footwear:['mat','foot'],
+  Heels:['heels'],Bags:['mat','bag'],Belts:['mat'],Glasses:['glass'],Hats:['hat'],Jewelry:['jewel'],Activewear:['active']};
+async function describe(img,type){
+  const noun=SINGULAR[type]||type.toLowerCase();let word=noun;const parts=[];
+  for(const k of DETAILS[type]||[]){
+    const a=A[k],T=await clipText(k+'|'+noun,a.p.map(x=>x.replace('{t}',noun))),p=clipProbs(img,T);
+    const best=p.indexOf(Math.max(...p));
+    if(a.word){if(p[best]>=.3)word=a.w[best];continue}
+    if(a.base!==null&&a.base!==undefined){if(best!==a.base&&p[best]>=.5)parts.push(a.w[best])}
+    else if(p[best]>=.4)parts.push(a.w[best]);
+  }
+  const pat=parts.filter(w=>A.pat.w.includes(w)),rest=parts.filter(w=>!A.pat.w.includes(w)&&!word.includes(w));
+  return{word,details:[...pat,...rest].slice(0,3)};
+}
+
+// Main colour, robust to soft shading: exposure is corrected from the brightest part of the item, and mostly colourless
+// items are judged white / grey / black from their overall brightness (so a shaded white top stays white).
 async function detectColour(blob,cutout){
   const im=await loadImage(URL.createObjectURL(blob));const n=96,c=document.createElement('canvas');c.width=n;c.height=n;const g=c.getContext('2d');
   g.drawImage(im,0,0,n,n);URL.revokeObjectURL(im.src);const d=g.getImageData(0,0,n,n).data;
-  const bins=new Map();
+  const px=[];
   for(let y=0;y<n;y++)for(let x=0;x<n;x++){
     if(!cutout&&(x<n*.28||x>n*.72||y<n*.22||y>n*.78))continue;
-    const i=(y*n+x)*4;if(d[i+3]<200)continue;
-    const k=(d[i]>>5)<<6|(d[i+1]>>5)<<3|(d[i+2]>>5);const b=bins.get(k)||{n:0,r:0,g:0,b:0};b.n++;b.r+=d[i];b.g+=d[i+1];b.b+=d[i+2];bins.set(k,b);
+    const i=(y*n+x)*4;if(d[i+3]<200)continue;px.push([d[i],d[i+1],d[i+2]]);
   }
-  // group the bins by plain colour name; the biggest group is the main colour, others covering 15%+ are secondary
+  if(!px.length)return null;
+  const lum=([r,g2,b])=>.299*r+.587*g2+.114*b;
+  const sorted=px.map(lum).sort((a,b)=>a-b),p95=sorted[Math.floor(sorted.length*.95)]||1;
+  const gain=p95>=150?clamp(242/p95,1,1.3):1; // only brighten light items that look underexposed
+  const adj=px.map(([r,g2,b])=>[Math.min(255,r*gain),Math.min(255,g2*gain),Math.min(255,b*gain)]);
+  const sat=([r,g2,b])=>{const mx=Math.max(r,g2,b)/255,mn=Math.min(r,g2,b)/255,l=(mx+mn)/2;return mx===mn?0:(mx-mn)/(1-Math.abs(2*l-1))};
+  const neutral=adj.filter(p=>sat(p)<.15||(lum(p)>200&&sat(p)<.28)||lum(p)<25);
+  // bins on the exposure-corrected pixels (for chromatic items and secondary colours)
+  const bins=new Map();
+  for(const[r,g2,b]of adj){const k=(r>>5)<<6|(g2>>5)<<3|(b>>5);const e=bins.get(k)||{n:0,r:0,g:0,b:0};e.n++;e.r+=r;e.g+=g2;e.b+=b;bins.set(k,e)}
   const names=new Map();let total=0;
   for(const b of bins.values()){const nm=rgbToName(b.r/b.n,b.g/b.n,b.b/b.n);const e=names.get(nm)||{n:0,top:null};e.n+=b.n;if(!e.top||b.n>e.top.n)e.top=b;names.set(nm,e);total+=b.n}
-  const ranked=[...names.entries()].sort((a,b)=>b[1].n-a[1].n);if(!ranked.length)return null;
+  if(neutral.length/adj.length>=.6){
+    const ls=neutral.map(lum).sort((a,b)=>a-b),med=ls[Math.floor(ls.length/2)]/255;
+    const name=med>.78?'white':med<.24?'black':'grey';
+    const near=neutral.filter(p=>Math.abs(lum(p)/255-med)<.06),avg=[0,1,2].map(k=>near.reduce((s,p)=>s+p[k],0)/Math.max(1,near.length));
+    const secondary=[...names.entries()].filter(([nm,e])=>!['white','grey','black'].includes(nm)&&e.n/total>=.15).sort((a,b)=>b[1].n-a[1].n).slice(0,2).map(([nm])=>nm);
+    return{name,hex:rgbToHex(...avg),secondary};
+  }
+  const ranked=[...names.entries()].sort((a,b)=>b[1].n-a[1].n);
   const[mainName,m]=ranked[0];
   return{name:mainName,hex:rgbToHex(m.top.r/m.top.n,m.top.g/m.top.n,m.top.b/m.top.n),secondary:ranked.slice(1).filter(([,e])=>e.n/total>=.15).slice(0,2).map(([nm])=>nm)};
 }
+// colour word for titles: plain name, with light/dark where it helps (light blue, dark green, light grey)
+function colourWord(col){
+  if(!col)return '';const[r,g,b]=hexToRgb(col.hex||GEN_HEX[col.name]||'#808080');const l=(Math.max(r,g,b)+Math.min(r,g,b))/510;
+  if(['white','black','navy','brown','beige'].includes(col.name))return col.name;
+  if(col.name==='grey')return l>.68?'light grey':l<.36?'dark grey':'grey';
+  return l>.72?'light '+col.name:l<.28?'dark '+col.name:col.name;
+}
 async function autoDetect(blob,cutout,status){
-  const type=await detectType(blob,status);
+  const img=await embedImage(blob,status);
+  const type=await detectType(blob,status,img);
   const col=await detectColour(blob,cutout).catch(()=>null);
-  const word=SINGULAR[type]||type.toLowerCase();
-  const name=col?`${col.name[0].toUpperCase()+col.name.slice(1)} ${word}`:word[0].toUpperCase()+word.slice(1);
+  let det={word:SINGULAR[type]||type.toLowerCase(),details:[]};try{det=await describe(img,type)}catch(e){console.warn('describe',e)}
+  const words=[colourWord(col),...det.details,det.word].filter(Boolean).join(' ');
+  const name=words[0].toUpperCase()+words.slice(1);
   return{type,group:GROUP_OF[type]||'Other',colour:col?.name||'',colourHex:col?.hex||null,colours2:col?.secondary||[],name};
 }
 
@@ -1088,10 +1160,10 @@ function syncSheet(){
 // (fill see-through specks, re-crop so the item fills its tile). fit level 3.
 async function refitCutouts(){
   let changed=0,bgDone=0;
-  const bgTotal=[...S.items.values()].filter(it=>(it.fit||0)<3).reduce((n,it)=>n+(it.imageId&&!it.cutout?1:0)+(it.backImageId&&!it.backCutout?1:0),0);
+  const bgTotal=[...S.items.values()].filter(it=>(it.fit||0)<4).reduce((n,it)=>n+(it.imageId&&!it.cutout?1:0)+(it.backImageId&&!it.backCutout?1:0),0);
   for(const[iid,it]of[...S.items]){
-    if((it.fit||0)>=3)continue;
-    const v={...it,fit:3};let failed=false;
+    if((it.fit||0)>=4)continue;
+    const v={...it,fit:4};let failed=false;
     for(const[idKey,cutKey]of[['imageId','cutout'],['backImageId','backCutout']]){
       const id=it[idKey];if(!id)continue;
       const blob=await idbGet('images',id);if(!blob)continue;
@@ -1110,6 +1182,14 @@ async function refitCutouts(){
         if(om.naturalWidth*om.naturalHeight<c.width*c.height*.9){src=out;touched=true}
         if(touched){v[idKey]=await addImage(src);await dropImage(id)}
       }catch(e){console.warn('refit',e)}
+    }
+    // items saved as grey: recheck the colour with the shading-aware detector (fixes white/black read as grey)
+    if((it.fit||0)<4&&genericName(it.colour)==='grey'&&v.imageId){
+      try{const b=await idbGet('images',v.imageId);const col=b&&await detectColour(b,v.cutout);
+        if(col&&col.name!=='grey'){const oldWord=/^(light |dark )?grey /i,cap=w=>w[0].toUpperCase()+w.slice(1);
+          v.colour=col.name;v.colourHex=col.hex;v.colours2=(v.colours2||[]).filter(c=>c!==col.name);
+          if(oldWord.test(v.name||''))v.name=cap(colourWord(col))+' '+v.name.replace(oldWord,'')}}
+      catch(e){console.warn('recolour',e)}
     }
     if(!S.items.has(iid))continue;
     if(failed)v.fit=2; // try the background again next time the app opens
