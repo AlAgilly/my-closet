@@ -20,7 +20,7 @@ A virtual closet you can add to your iPhone home screen. Add clothes with front 
 
 ## Credits
 
-- Clothing type icons: [IconPark](https://github.com/bytedance/IconPark) by ByteDance (Apache License 2.0) and [Phosphor Icons](https://github.com/phosphor-icons/core) (MIT License), with line weights adjusted. The tank top icon is the owner's own drawing.
+- Clothing type icons: [IconPark](https://github.com/bytedance/IconPark) by ByteDance (Apache License 2.0) and [Phosphor Icons](https://github.com/phosphor-icons/core) (MIT License), with line weights adjusted. The tank top icon is the owner's own drawing. Activewear icon: [Sportwear](https://www.flaticon.com/free-icon/sportwear_18842964) by Adury5711; Bags icon: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish, both from [Flaticon](https://www.flaticon.com) (free with attribution).
 - Background removal: [RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4) by BRIA AI (free for non-commercial use), run with [Transformers.js](https://github.com/huggingface/transformers.js).
 - Item recognition: [CLIP](https://huggingface.co/Xenova/clip-vit-base-patch32) (OpenAI, MIT License) via Transformers.js.
 
