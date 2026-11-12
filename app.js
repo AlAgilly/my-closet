@@ -499,7 +499,7 @@ function closetView(){
 const ICON={
   all:'<rect x="4" y="4" width="3.6" height="16" rx="1.6"/><rect x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/>',
   tshirt:'<path d="M8.6 3.6 4.2 5.8 2.6 9.9l3.2 1.4.9-1.6v10.7h10.6V9.7l.9 1.6 3.2-1.4-1.6-4.1-4.4-2.2"/><path d="M8.6 3.6c.5 1.5 1.8 2.4 3.4 2.4s2.9-.9 3.4-2.4M6.7 18.6h10.6"/>',
-  tank:'<g transform="scale(.25)"><path stroke-width="5" d="M31 16 H34 L36 34 Q48 43 60 34 L62 16 H65 L64 36 Q64 41 68 44 L65 78 Q48 81 31 78 L28 44 Q32 41 32 36 Z M31.4 74 Q48 77 64.6 74"/></g>',
+  tank:'<g transform="scale(.25)"><path stroke-width="4" d="M31 16 H34 L36 34 Q48 43 60 34 L62 16 H65 L64 36 Q64 41 68 44 L65 78 Q48 81 31 78 L28 44 Q32 41 32 36 Z M31.4 74 Q48 77 64.6 74"/></g>',
   bodysuit:'<path d="M9.2 3.4 6 4.6 3.4 14.2l2 .6 2.2-6.2v6.2c0 1.4.8 2.6 2 3.4l2.4 1.6 2.4-1.6c1.2-.8 2-2 2-3.4V8.6l2.2 6.2 2-.6L18 4.6l-3.2-1.2"/><path d="M9.2 3.4c.6 1.3 1.6 2 2.8 2s2.2-.7 2.8-2M7.6 14.6c2 .2 3.4 1.6 4.4 5.2 1-3.6 2.4-5 4.4-5.2"/>',
   shirt:'<path d="M8.8 3.2 5 4.8c-.6.3-1 .8-1.1 1.5L2.6 17.6l2.7.7 2.1-8V21h9.2V10.3l2.1 8 2.7-.7-1.3-11.3c-.1-.7-.5-1.2-1.1-1.5l-3.8-1.6"/><path d="M8.8 3.2 10.2 8 12 6l1.8 2 1.4-4.8M8.8 3.2c1 .6 2.1.9 3.2.9s2.2-.3 3.2-.9M12 6v15M2.9 16l2.6.7M21.1 16l-2.6.7"/><circle cx="12.9" cy="10.6" r=".35"/><circle cx="12.9" cy="14" r=".35"/><circle cx="12.9" cy="17.4" r=".35"/>',
   sweater:'<path d="M8.6 3.8 4.8 5.6c-.6.3-1 .9-1.1 1.6l-.9 10.4h2.6L7.2 10v8.6h9.6V10l1.8 7.6h2.6l-.9-10.4c-.1-.7-.5-1.3-1.1-1.6l-3.8-1.8"/><path d="M8.6 3.8c.6 1.2 1.9 1.9 3.4 1.9s2.8-.7 3.4-1.9M7.2 18.6v1.8h9.6v-1.8M2.8 17.6v1.6h2.6v-1.6M18.6 17.6v1.6h2.6v-1.6"/>',
@@ -518,7 +518,7 @@ const ICON={
   vest:'<path d="M8.4 3.2 6.4 4.8c.8 1.6 1 3.2.6 4.8L6 13v6.6c0 .6.4 1 1 1h4.4l.6-1.6.6 1.6H17c.6 0 1-.4 1-1V13l-1-3.4c-.4-1.6-.2-3.2.6-4.8l-2-1.6L12 11.2z"/><path d="M12 11.2V19M7.8 14.6H10M14 14.6h2.2"/><circle cx="12.9" cy="13.6" r=".35"/><circle cx="12.9" cy="16.4" r=".35"/>',
   sneaker:'<path d="M2.6 16.4v-6.2l3.2-.8 2.4 2.4 3.6-1.2 4.4 2.8 4.6 1.2c.4.1.6.4.6.8v1z"/><path d="M2.6 16.4h18.8v1.8H2.6zM8.8 11.4l1.4 2M11.6 10.8l1.4 2M2.6 13.6h5"/>',
   boot:'<path d="M8 3h6.4v9.6l3.6 1.6c1 .4 1.6 1.4 1.6 2.4v1.6H7.2l.6-6.8z"/><path d="M7.2 18.2v1.6h12.4v-1.6M14.4 6.2c-1.2 1-2.2 1.4-3.4 1.4M8 6h2.2"/>',
-  shoes:'<g transform="matrix(1.18 0 0 1.18 -1.57 -4.63)"><path vector-effect="non-scaling-stroke" d="M4.3 17.9h6c.5 0 1-.1 1.5-.2 2.1-.5 3.8-1.8 5.9-2.4l.4 5.3h1.2l.8-7 .2-.8c.1-.4 0-.8-.2-1.2l-1.6-2.6c-.5-.9-1.7-1-2.4-.3l-3.3 3.4c-1.4 1.4-3.1 2.3-5.1 2.2l-2.8-.2C3.6 14 2.6 14.9 2.6 16.2c0 .9.7 1.7 1.7 1.7z"/></g>',
+  shoes:'<g transform="matrix(1.18 0 0 1.18 -1.57 -4.63)"><path stroke-width=".85" d="M4.3 17.9h6c.5 0 1-.1 1.5-.2 2.1-.5 3.8-1.8 5.9-2.4l.4 5.3h1.2l.8-7 .2-.8c.1-.4 0-.8-.2-1.2l-1.6-2.6c-.5-.9-1.7-1-2.4-.3l-3.3 3.4c-1.4 1.4-3.1 2.3-5.1 2.2l-2.8-.2C3.6 14 2.6 14.9 2.6 16.2c0 .9.7 1.7 1.7 1.7z"/></g>',
   sandal:'<path d="M3 17c0-1.6 2.2-2.6 5-2.8l3-.2c3.6 0 7 .8 8.6 1.8.6.4.9.9.9 1.4v.6H3z"/><path d="M3 17.8h17.5M8 14.2l1.8-4.6M13.8 14l-1.2-4.4M9.8 9.6h2.8M6.4 14.4c.4-1.8 1.4-3 3-3.6"/>',
   loafer:'<path d="M2.8 15.4c0-2.4 2.4-3.6 5.6-3.6l2.6 1h5c3.2 0 5.2 1.2 5.2 3.4v.8H2.8z"/><path d="M2.8 17h18.4M9.6 12.6h4.4v2h-4.4z"/>',
   bag:'<path d="M4.4 9h15.2l-1.1 11.4c-.1.6-.6 1-1.2 1H6.7c-.6 0-1.1-.4-1.2-1z"/><path d="M8.4 9V7.4a3.6 3.6 0 0 1 7.2 0V9M4.8 12.4h14.4"/>',
@@ -716,6 +716,35 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;const r=$('#results');if(r)r.innerHTML=closetResults()}});
 document.addEventListener('change',e=>{if(e.target.closest('#sheetRoot'))return;const id=e.target.id;if(id==='fColour')S.colour=e.target.value;else if(id==='fStyle')S.style=e.target.value;else if(id==='fSort')S.sort=e.target.value;else return;render()});
 $('#fab').addEventListener('click',()=>({closet:()=>itemSheet(null),outfits:()=>outfitSheet(null),calendar:()=>daySheet(today())})[S.view]?.());
+
+/* ---------- press and hold an item for quick actions ---------- */
+let hold=null,holdFired=false;
+function holdCancel(){if(hold){clearTimeout(hold.t);hold.card.classList.remove('pressing');hold=null}}
+document.addEventListener('pointerdown',e=>{
+  const card=e.target.closest('#view [data-item]');if(!card||e.button>0)return;
+  holdCancel();holdFired=false;card.classList.add('pressing');
+  hold={card,x:e.clientX,y:e.clientY,t:setTimeout(()=>{holdFired=true;const id=card.dataset.item;holdCancel();try{navigator.vibrate?.(12)}catch(_){}itemActions(id)},500)};
+});
+document.addEventListener('pointermove',e=>{if(hold&&Math.hypot(e.clientX-hold.x,e.clientY-hold.y)>10)holdCancel()});
+document.addEventListener('pointerup',holdCancel);document.addEventListener('pointercancel',holdCancel);
+addEventListener('scroll',holdCancel,{passive:true});
+document.addEventListener('click',e=>{if(holdFired&&e.target.closest('#view [data-item]')){e.stopPropagation();e.preventDefault();holdFired=false}},true);
+document.addEventListener('contextmenu',e=>{const card=e.target.closest('#view [data-item]');if(!card)return;e.preventDefault();if(!$('#sheetRoot').firstChild){holdCancel();itemActions(card.dataset.item)}});
+function itemActions(id){
+  const it=S.items.get(id);if(!it)return;
+  const sh=openSheet(`<div class="actrow"><span class="mini ${it.cutout&&hasImg(it)?'cut':''}">${thumb(it)}</span><span class="tx"><b>${esc(it.name||'Untitled')}</b><small>${esc(typeOf(it))}${it.price!=null&&it.price!==''?' · '+money(it.price):''}</small></span></div>
+    <div class="actions">
+      <button class="btn" type="button" id="aEdit">Edit</button>
+      <button class="btn" type="button" id="aWear">Wore it today</button>
+      <button class="btn danger" type="button" id="aDel">Delete</button>
+      <button class="btn" type="button" data-close>Cancel</button>
+    </div>`);
+  sh.querySelector('#aEdit').addEventListener('click',()=>{closeSheet();itemSheet(id)});
+  const wt=sh.querySelector('#aWear');
+  wt.addEventListener('click',()=>guard(wt,async()=>{const t=today(),p=S.plans.get(t);const ids=[...new Set([...(p?.itemIds||[]),id])];await saveDoc('plans',t,{itemIds:ids,outfitId:matchOutfit(ids),note:p?.note||''});closeSheet();toast('Logged for today')}));
+  const del=sh.querySelector('#aDel');
+  armDelete(del,()=>guard(del,async()=>{await delDoc('items',id);for(const d of imageIdsOf(it))await dropImage(d);closeSheet();toast(`Deleted ${it.name||'item'}`)}));
+}
 
 /* ---------- sheets ---------- */
 function openSheet(html){
