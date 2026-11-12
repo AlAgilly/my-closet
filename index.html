@@ -214,6 +214,33 @@ nav.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
 .photos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pslot{display:flex;flex-direction:column;gap:6px;min-width:0}
 .pslot .photo{width:100%}
+.bulkbtn{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--line);border-radius:var(--r);padding:11px;font-weight:600;color:var(--accent);background:var(--surface)}
+.bulkbtn:focus-visible{outline:2px solid var(--accent)}
+.check{display:flex;align-items:center;gap:10px;font-size:15px}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.filebtn{position:relative;overflow:hidden;text-align:center;cursor:pointer}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.brow{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px;min-width:0}
+.brow .mini{width:48px;height:62px;border-radius:8px;overflow:hidden;flex:none;background:var(--bg);display:grid;place-items:center}
+.brow .mini img{width:100%;height:100%;object-fit:cover}
+.brow .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.brow .tx small{color:var(--muted)}
+.brow input,.brow select{width:100%;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.brow .bprice{width:68px;flex:none;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+.colrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.colrow b{flex:1;min-width:4em}
+.bigsw{width:34px;height:34px;border-radius:50%;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent);flex:none}
+.bigsw.empty{background:repeating-linear-gradient(45deg,var(--line) 0 4px,transparent 4px 8px)!important}
+.pickbtn{position:relative;overflow:hidden;cursor:pointer}
+.field label.pickbtn{text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink)}
+.pickbtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.swatches button{width:30px;height:30px;padding:0;position:relative}
+.swatches button[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:2px}
+.swatches button[aria-pressed="true"]::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:14px;font-weight:700;color:#fff;text-shadow:0 0 3px rgb(0 0 0/.8)}
+.eyedrop{display:flex;flex-direction:column;gap:8px;align-items:center}
+.eyedrop canvas{max-width:100%;max-height:60vh;border-radius:12px;border:1px solid var(--line);cursor:crosshair;touch-action:manipulation}
+.sws{display:inline-flex;align-items:center;gap:2px;flex:none}
+.sw.sm{width:8px;height:8px}
 .plabel{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:center}
 .syncdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .syncdot.ok{background:var(--ok)}.syncdot.busy{background:var(--accent)}.syncdot.err{background:var(--danger)}

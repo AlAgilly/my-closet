@@ -12,7 +12,31 @@ const GROUPS=[
   ['Other',['Activewear','Swimwear','Sleepwear','Other']]];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
-const COLOURS=['black','white','cream','beige','brown','grey','navy','blue','lightblue','green','olive','red','burgundy','pink','purple','yellow','orange','gold','silver'];
+// Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
+const GENERIC=[['black','#1c1c1e'],['white','#f6f6f4'],['grey','#8e8e93'],['beige','#d8c3a0'],['brown','#7b5234'],['red','#c8302f'],['orange','#ec8a2f'],['yellow','#f2cf45'],['green','#3f8f53'],['blue','#3b74c4'],['navy','#1f2d55'],['purple','#7a4a9c'],['pink','#ec9ab8']];
+const GEN_HEX=Object.fromEntries(GENERIC);
+const LEGACY={cream:'beige',lightblue:'blue',olive:'green',burgundy:'red',gold:'yellow',silver:'grey',gray:'grey',tan:'beige',khaki:'beige',maroon:'red',teal:'green',denim:'blue'};
+const genericName=c=>{c=(c||'').trim().toLowerCase();return GEN_HEX[c]?c:LEGACY[c]||c};
+const hexToRgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+function rgbToName(r,g,b){
+  r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,dl=mx-mn;
+  const s=dl===0?0:dl/(1-Math.abs(2*l-1));let h=0;
+  if(dl){h=mx===r?((g-b)/dl)%6:mx===g?(b-r)/dl+2:(r-g)/dl+4;h=(h*60+360)%360}
+  if(l<.13)return 'black';
+  if(s<.12||(s<.2&&l>.25&&l<.85))return l>.86?'white':l<.22?'black':'grey';
+  if(l>.9&&(s<.3||h<35||h>=75))return 'white';
+  if(h>=15&&h<50){if(l<.42)return 'brown';if(s<.55&&l>.58)return 'beige';return h<40?'orange':'yellow'}
+  if(h<15||h>=345)return l>.72?'pink':(l<.3&&s<.6?'brown':'red');
+  if(h<75){if(l<.32)return 'green';return (s<.45&&l>.6)||l>.85?'beige':'yellow'}
+  if(h<170)return 'green';
+  if(h<250)return l<.3?'navy':'blue';
+  if(h<290)return 'purple';
+  return 'pink';
+}
+const hexToName=h=>rgbToName(...hexToRgb(h));
+const swatchOf=it=>it?.colourHex||GEN_HEX[genericName(it?.colour)]||okColour(it?.colour);
+const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boolean);
 const COLS=['closets','items','outfits','plans'];
 const MAIN='main';
 const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
@@ -46,7 +70,7 @@ const wantedImages=items=>new Set([...items].flatMap(imageIdsOf));
 const img=id=>id&&URLS.has(id)?`<img src="${URLS.get(id)}" alt="" loading="lazy" draggable="false" onerror="this.remove()">`:'';
 function thumb(it){
   if(hasImg(it))return img(it.imageId);
-  const c=okColour(it?.colour);
+  const c=swatchOf(it);
   return `<span class="ini" ${c?`style="color:${c}"`:''}>${esc((it?.name||'?').trim()[0]?.toUpperCase()||'?')}</span>`;
 }
 const phCls=it=>'ph'+(it?.cutout&&hasImg(it)?' cut':'');
@@ -54,7 +78,12 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 
 /* ---------- IndexedDB ---------- */
 let IDB=null;
-function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open('my-closet',2);r.onupgradeneeded=()=>{for(const s of[...COLS,'images','meta'])if(!r.result.objectStoreNames.contains(s))r.result.createObjectStore(s)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+function idbOpen(){return new Promise((res,rej)=>{
+  const r=indexedDB.open('my-closet',2);
+  r.onupgradeneeded=()=>{for(const s of[...COLS,'images','meta'])if(!r.result.objectStoreNames.contains(s))r.result.createObjectStore(s)};
+  r.onblocked=()=>{S.notice='The app is open in another tab with an older version. Close that tab to finish updating.';render()};
+  r.onsuccess=()=>{const db=r.result;db.onversionchange=()=>{db.close();S.notice='A newer version of the app was opened. Reload this page to keep using it.';render()};if(S.notice.startsWith('The app is open'))S.notice='';res(db)};
+  r.onerror=()=>rej(r.error)})}
 function idbTx(stores,mode,fn){return new Promise((res,rej)=>{const t=IDB.transaction(stores,mode);let out;const q=fn(t);if(q&&'onsuccess'in q)q.onsuccess=()=>{out=q.result};t.oncomplete=()=>res(out);t.onerror=t.onabort=()=>rej(t.error)})}
 const idbGet=(s,k)=>idbTx(s,'readonly',t=>t.objectStore(s).get(k));
 const idbPut=(s,k,v)=>idbTx(s,'readwrite',t=>{t.objectStore(s).put(v,k)});
@@ -81,13 +110,21 @@ function hasAlpha(canvas){
   const s=document.createElement('canvas');s.width=64;s.height=64;const g=s.getContext('2d');g.drawImage(canvas,0,0,64,64);
   const d=g.getImageData(0,0,64,64).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i]<200)n++;return n>40;
 }
+// Crop a transparent image to the item and centre it with even padding.
+// Faint halo pixels are cleared, and stray specks (rows/columns with only a few solid pixels) are ignored when finding the edges.
 async function trimToBlob(c){
-  const g=c.getContext('2d');const{width:w,height:h}=c;const d=g.getImageData(0,0,w,h).data;
-  let x0=w,y0=h,x1=-1,y1=-1;
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
-  if(x1<0)throw{code:'empty'};
-  const pad=Math.round(Math.max(x1-x0,y1-y0)*.03);x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(w-1,x1+pad);y1=Math.min(h-1,y1+pad);
-  const o=document.createElement('canvas');o.width=x1-x0+1;o.height=y1-y0+1;o.getContext('2d').drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
+  const g=c.getContext('2d');const{width:w,height:h}=c;const img=g.getImageData(0,0,w,h),d=img.data;
+  const rows=new Uint32Array(h),cols=new Uint32Array(w);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4+3;if(d[i]<28){d[i]=0;continue}if(d[i]>=128){rows[y]++;cols[x]++}}
+  g.putImageData(img,0,0);
+  const minR=Math.max(2,Math.round(w*.006)),minC=Math.max(2,Math.round(h*.006));
+  let y0=0,y1=h-1,x0=0,x1=w-1;
+  while(y0<h&&rows[y0]<minR)y0++;while(y1>y0&&rows[y1]<minR)y1--;
+  while(x0<w&&cols[x0]<minC)x0++;while(x1>x0&&cols[x1]<minC)x1--;
+  if(y0>=h||x0>=w||x1-x0<4||y1-y0<4)throw{code:'empty'};
+  const iw=x1-x0+1,ih=y1-y0+1,pad=Math.round(Math.max(iw,ih)*.06);
+  const o=document.createElement('canvas');o.width=iw+pad*2;o.height=ih+pad*2;
+  o.getContext('2d').drawImage(c,x0,y0,iw,ih,pad,pad,iw,ih);
   return await new Promise(r=>o.toBlob(r,'image/png'));
 }
 async function shrink(file){
@@ -99,12 +136,13 @@ async function shrink(file){
   if(hasAlpha(c))return{blob:await trimToBlob(c),cutout:true};
   return{blob:await new Promise(r=>c.toBlob(r,'image/jpeg',.85)),cutout:false};
 }
+let TJS=null;
+async function loadT(){if(!TJS){TJS=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js');TJS.env.allowLocalModels=false}return TJS}
 let RB=null;
 async function removeBg(blob,status){
   if(!RB){
     status('Downloading the cut-out tool. This happens once and is about 45 MB, so Wi-Fi helps…');
-    const T=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js');
-    T.env.allowLocalModels=false;
+    const T=await loadT();
     const model=await T.AutoModel.from_pretrained('briaai/RMBG-1.4',{config:{model_type:'custom'}});
     const processor=await T.AutoProcessor.from_pretrained('briaai/RMBG-1.4',{config:{do_normalize:true,do_pad:false,do_rescale:true,do_resize:true,image_mean:[0.5,0.5,0.5],feature_extractor_type:'ImageFeatureExtractor',image_std:[1,1,1],resample:2,rescale_factor:0.00392156862745098,size:{width:1024,height:1024}}});
     RB={T,model,processor};
@@ -121,6 +159,68 @@ async function removeBg(blob,status){
     const d=g.getImageData(0,0,c.width,c.height);for(let i=0;i<mask.data.length;i++)d.data[4*i+3]=mask.data[i];g.putImageData(d,0,0);
     return await trimToBlob(c);
   }finally{URL.revokeObjectURL(url)}
+}
+
+/* ---------- auto-detect: type (on-device CLIP), colour (pixels), name ---------- */
+const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Shirts':'a button-up shirt','Blouses':'a blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
+  'Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt','Leggings':'a pair of leggings','Sweatpants':'a pair of sweatpants',
+  'Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
+  'Sneakers':'a pair of sneakers','Boots':'a pair of boots','Heels':'a pair of high heels','Flats':'a pair of flat shoes','Sandals':'a pair of sandals','Loafers':'a pair of loafers',
+  'Bags':'a handbag','Hats':'a hat','Jewelry':'a piece of jewelry','Belts':'a belt','Scarves':'a scarf','Sunglasses':'a pair of sunglasses','Watches':'a wristwatch',
+  'Swimwear':'a swimsuit','Sleepwear':'a pair of pajamas'};
+const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Shirts':'shirt','Blouses':'blouse','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
+  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneakers','Boots':'boots','Heels':'heels','Flats':'flats','Sandals':'sandals','Loafers':'loafers',
+  'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Swimwear':'swimsuit','Sleepwear':'pajamas'};
+let CLIP=null;
+async function loadClip(status){
+  if(CLIP)return CLIP;
+  status&&status('Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…');
+  const T=await loadT(),M='Xenova/clip-vit-base-patch32';
+  const[tok,textModel,proc,vision]=await Promise.all([T.AutoTokenizer.from_pretrained(M),T.CLIPTextModelWithProjection.from_pretrained(M),T.AutoProcessor.from_pretrained(M),T.CLIPVisionModelWithProjection.from_pretrained(M)]);
+  const types=Object.keys(TYPE_PHRASE);
+  const{text_embeds}=await textModel(tok(types.map(t=>`a product photo of ${TYPE_PHRASE[t]}`),{padding:true,truncation:true}));
+  const dim=text_embeds.dims[1],te=text_embeds.data,norms=types.map((_,i)=>Math.hypot(...te.subarray(i*dim,(i+1)*dim)));
+  CLIP={T,proc,vision,types,dim,te,norms};return CLIP;
+}
+async function flatOnWhite(blob){
+  const im=await loadImage(URL.createObjectURL(blob));const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);URL.revokeObjectURL(im.src);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
+}
+async function detectType(blob,status){
+  const C=await loadClip(status);status&&status('Recognizing the item…');
+  const url=URL.createObjectURL(await flatOnWhite(blob));
+  try{
+    const{pixel_values}=await C.proc(await C.T.RawImage.fromURL(url));
+    const{image_embeds}=await C.vision({pixel_values});const ie=image_embeds.data,inorm=Math.hypot(...ie);
+    let best=0,bestS=-1;
+    C.types.forEach((t,i)=>{let s=0;for(let k=0;k<C.dim;k++)s+=ie[k]*C.te[i*C.dim+k];s/=inorm*C.norms[i];if(s>bestS){bestS=s;best=i}});
+    return C.types[best];
+  }finally{URL.revokeObjectURL(url)}
+}
+// Most common colour among the item's pixels (solid pixels for cut-outs, the middle of the photo otherwise), mapped to the nearest named colour.
+async function detectColour(blob,cutout){
+  const im=await loadImage(URL.createObjectURL(blob));const n=96,c=document.createElement('canvas');c.width=n;c.height=n;const g=c.getContext('2d');
+  g.drawImage(im,0,0,n,n);URL.revokeObjectURL(im.src);const d=g.getImageData(0,0,n,n).data;
+  const bins=new Map();
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    if(!cutout&&(x<n*.28||x>n*.72||y<n*.22||y>n*.78))continue;
+    const i=(y*n+x)*4;if(d[i+3]<200)continue;
+    const k=(d[i]>>5)<<6|(d[i+1]>>5)<<3|(d[i+2]>>5);const b=bins.get(k)||{n:0,r:0,g:0,b:0};b.n++;b.r+=d[i];b.g+=d[i+1];b.b+=d[i+2];bins.set(k,b);
+  }
+  // group the bins by plain colour name; the biggest group is the main colour, others covering 15%+ are secondary
+  const names=new Map();let total=0;
+  for(const b of bins.values()){const nm=rgbToName(b.r/b.n,b.g/b.n,b.b/b.n);const e=names.get(nm)||{n:0,top:null};e.n+=b.n;if(!e.top||b.n>e.top.n)e.top=b;names.set(nm,e);total+=b.n}
+  const ranked=[...names.entries()].sort((a,b)=>b[1].n-a[1].n);if(!ranked.length)return null;
+  const[mainName,m]=ranked[0];
+  return{name:mainName,hex:rgbToHex(m.top.r/m.top.n,m.top.g/m.top.n,m.top.b/m.top.n),secondary:ranked.slice(1).filter(([,e])=>e.n/total>=.15).slice(0,2).map(([nm])=>nm)};
+}
+async function autoDetect(blob,cutout,status){
+  const type=await detectType(blob,status);
+  const col=await detectColour(blob,cutout).catch(()=>null);
+  const word=SINGULAR[type]||type.toLowerCase();
+  const name=col?`${col.name[0].toUpperCase()+col.name.slice(1)} ${word}`:word[0].toUpperCase()+word.slice(1);
+  return{type,group:GROUP_OF[type]||'Other',colour:col?.name||'',colourHex:col?.hex||null,colours2:col?.secondary||[],name};
 }
 
 /* ---------- GitHub sync ---------- */
@@ -308,12 +408,14 @@ function closetChips(cur,attr,extra=''){
 }
 function closetView(){
   if(!S.ready)return '';
-  const top=closetChips(S.closet,'data-closet',`<button class="chip ghost" type="button" id="manageClosets">${S.closets.size>1?'Edit closets':'+ Add a closet'}</button>`);
+  const top=closetChips(S.closet,'data-closet',`<button class="chip ghost" type="button" id="manageClosets">${S.closets.size>1?'Edit closets':'+ Add a closet'}</button>`)
+    +`<button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Add many photos at once</button>`;
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
   if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
   const types={};for(const[,i]of all){const t=typeOf(i);types[t]=(types[t]||0)+1}
   if(S.type!=='All'&&!types[S.type])S.type='All';
-  const colours=[...new Set(all.map(([,i])=>(i.colour||'').trim().toLowerCase()).filter(Boolean))].sort();
+  const order=GENERIC.map(g=>g[0]);
+  const colours=[...new Set(all.flatMap(([,i])=>itemColours(i)))].sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99)||a.localeCompare(b));
   const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
   return top+`
     <input class="search" id="q" type="search" placeholder="Search name, type, colour, style" value="${esc(S.q)}" aria-label="Search closet">
@@ -325,17 +427,17 @@ function closetView(){
     </div><div id="results">${closetResults()}</div>`;
 }
 function itemCard(id,i,W){
-  const r=W[id],l=last(r),c=okColour(i.colour);
+  const r=W[id],l=last(r),c=swatchOf(i),c2=(i.colours2||[]).map(n=>GEN_HEX[n]||okColour(n)).filter(Boolean);
   return `<button class="card" type="button" data-item="${id}">
     <div class="${phCls(i)}">${thumb(i)}</div>
     ${i.price!==''&&i.price!=null?`<span class="tag">${money(i.price)}</span>`:''}
     <div class="nm">${esc(i.name||'Untitled')}</div>
-    <div class="meta">${c?`<span class="sw" style="background:${c}"></span>`:''}<span>${l?`Worn ${r.worn.length}× · ${ago(l)}`:'Not worn yet'}</span></div>
+    <div class="meta">${c?`<span class="sws"><span class="sw" style="background:${c}"></span>${c2.map(x=>`<span class="sw sm" style="background:${x}"></span>`).join('')}</span>`:''}<span>${l?`Worn ${r.worn.length}× · ${ago(l)}`:'Not worn yet'}</span></div>
   </button>`;
 }
 function closetResults(){
   const W=wear().items,q=S.q.toLowerCase();
-  let list=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet)&&(S.type==='All'||typeOf(i)===S.type)&&(!S.colour||(i.colour||'').trim().toLowerCase()===S.colour)&&(!S.style||(i.style||'').trim().toLowerCase()===S.style)&&(!q||[i.name,i.colour,i.style,typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
+  let list=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet)&&(S.type==='All'||typeOf(i)===S.type)&&(!S.colour||itemColours(i).includes(S.colour))&&(!S.style||(i.style||'').trim().toLowerCase()===S.style)&&(!q||[i.name,...itemColours(i),i.style,typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
   const sorters={
     new:(a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0),
     priceHi:(a,b)=>(Number(b[1].price)||0)-(Number(a[1].price)||0),
@@ -458,7 +560,7 @@ function statsView(){
   const bars=(rows,max,fmt)=>`<div class="bars">${rows.map(r=>`<div class="bar"><span class="bl">${r.sw?`<span class="sw" style="background:${r.sw}"></span>`:''}${esc(r.label)}</span><span class="bt"><span style="width:${Math.max(2,r.v/max*100)}%"></span></span><span class="bv">${fmt(r)}</span></div>`).join('')}</div>`;
   const byType={};for(const[,i]of its){const t=typeOf(i);(byType[t]??={label:t,v:0,val:0}).v++;byType[t].val+=Number(i.price)||0}
   const typeRows=Object.values(byType).sort((a,b)=>b.v-a.v);
-  const byCol={};for(const[,i]of its){const k=(i.colour||'').trim().toLowerCase()||'no colour';(byCol[k]??={label:k,v:0,sw:okColour(k)}).v++}
+  const byCol={};for(const[,i]of its){const k=genericName(i.colour)||'no colour';(byCol[k]??={label:k,v:0,sw:GEN_HEX[k]||okColour(k)}).v++}
   const colRows=Object.values(byCol).sort((a,b)=>b.v-a.v).slice(0,8);
   const most=its.filter(([id])=>wornCount(id)).sort((a,b)=>wornCount(b[0])-wornCount(a[0])).slice(0,5);
   const cpw=priced.filter(([id])=>wornCount(id)).map(([id,i])=>[id,i,Number(i.price)/wornCount(id)]).sort((a,b)=>a[2]-b[2]).slice(0,5);
@@ -484,6 +586,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#sheetRoot'))return;
   if(e.target.closest('#syncBtn,[data-open-sync]')){syncSheet();return}
   if(e.target.closest('#manageClosets')){closetsSheet();return}
+  if(e.target.closest('#bulkBtn')){bulkSheet();return}
   const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';ls.set('closet.current',S.closet);render();return}
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
@@ -512,6 +615,61 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheetRoot').fir
 const head=t=>`<div class="shead"><h2>${t}</h2><button class="iconbtn" type="button" data-close aria-label="Close">✕</button></div>`;
 function armDelete(btn,fn,label='Delete'){btn.addEventListener('click',()=>{if(!btn.classList.contains('armed')){btn.classList.add('armed');btn.textContent='Tap again to confirm';setTimeout(()=>{btn.classList.remove('armed');btn.textContent=label},3500);return}fn()})}
 async function guard(btn,fn){btn.disabled=true;try{await fn()}catch(err){console.error(err);toast(err?.name==='QuotaExceededError'?'This device is out of space for the app. Free up storage and try again.':err?.code==='unsupported_type'?'That file type isn’t supported. Try a JPEG or PNG.':'Couldn’t save. Please try again.')}finally{btn.disabled=false}}
+
+function typeOptions(cur){
+  const own=[...new Set([...S.items.values()].map(typeOf).filter(t=>!GROUP_OF[t]))];if(cur&&!GROUP_OF[cur]&&!own.includes(cur))own.push(cur);
+  return GROUPS.map(([g,ts])=>`<optgroup label="${g}">${ts.map(t=>`<option ${cur===t?'selected':''}>${t}</option>`).join('')}</optgroup>`).join('')+(own.length?`<optgroup label="Your own">${own.map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}</optgroup>`:'');
+}
+
+function bulkSheet(){
+  const closets=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
+  const defCloset=S.closet!=='all'&&S.closets.has(S.closet)?S.closet:MAIN;
+  const sh=openSheet(`${head('Add many pieces')}
+    <p class="muted" style="margin:0">Choose several photos, one piece of clothing per photo. Each photo becomes its own item.</p>
+    ${closets.length>1?`<div class="field"><label for="bCloset">Add to closet</label><select id="bCloset">${closets.map(([cid,c])=>`<option value="${cid}" ${cid===defCloset?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`:''}
+    <label class="check"><input type="checkbox" id="bCut" ${ls.get('closet.bulkCut')!=='off'?'checked':''}> Remove backgrounds</label>
+    <label class="check"><input type="checkbox" id="bAuto" ${ls.get('closet.autoDetect')!=='off'?'checked':''}> Name and sort them automatically</label>
+    <label class="btn primary filebtn" id="bPick">Choose photos<input type="file" accept="image/*" multiple id="bFiles"></label>
+    <p class="muted" id="bMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
+    <div class="list" id="bList"></div>
+    <div class="btns" id="bEnd" hidden><button class="btn primary" type="button" id="bSave">Save and close</button></div>`);
+  const msg=sh.querySelector('#bMsg'),list=sh.querySelector('#bList');
+  const cutEl=sh.querySelector('#bCut'),autoEl=sh.querySelector('#bAuto');
+  cutEl.addEventListener('change',()=>ls.set('closet.bulkCut',cutEl.checked?null:'off'));
+  autoEl.addEventListener('change',()=>ls.set('closet.autoDetect',autoEl.checked?null:'off'));
+  const created=[];
+  sh.querySelector('#bFiles').addEventListener('change',async e=>{
+    const files=[...e.target.files];e.target.value='';if(!files.length)return;
+    const closetId=sh.querySelector('#bCloset')?.value||defCloset,cut=cutEl.checked,auto=autoEl.checked;
+    sh.querySelector('#bPick').hidden=true;cutEl.disabled=autoEl.disabled=true;
+    const rows=files.map((f,i)=>{const r=document.createElement('div');r.className='brow';r.innerHTML=`<span class="mini"></span><span class="tx"><b>Photo ${i+1}</b><small>Waiting…</small></span>`;list.append(r);return r});
+    for(let i=0;i<files.length;i++){
+      const row=rows[i],st=t=>{row.querySelector('small').textContent=t};
+      msg.textContent=`Working on ${i+1} of ${files.length}. Keep the app open until it finishes.`;
+      let r;try{st('Preparing…');r=await shrink(files[i])}catch(err){st('Skipped: not a supported photo');continue}
+      if(cut&&!r.cutout){st('Removing background…');try{r={blob:await removeBg(r.blob,m=>msg.textContent=m),cutout:true}}catch(err){console.warn(err)}}
+      let g={name:'New piece',type:'Other',group:'Other',colour:'',colourHex:null,colours2:[]};
+      if(auto){st('Recognizing…');try{g=await autoDetect(r.blob,r.cutout,m=>msg.textContent=m)}catch(err){console.warn(err)}}
+      try{
+        const imageId=await addImage(r.blob),iid=newId();
+        await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now()});
+        created.push(iid);
+        row.innerHTML=`<span class="mini ${r.cutout?'cut':''}">${img(imageId)}</span><span class="tx"><input data-bname="${iid}" value="${esc(g.name)}" aria-label="Name"><select data-btype="${iid}" aria-label="Type">${typeOptions(g.type)}</select></span><input class="bprice" data-bprice="${iid}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$" aria-label="Price">`;
+      }catch(err){console.error(err);st(err?.name==='QuotaExceededError'?'Skipped: this device is out of space':'Skipped: couldn’t save')}
+    }
+    msg.textContent=created.length?`Added ${created.length} piece${created.length===1?'':'s'}. Fix any names or types below and add prices if you like.`:'No pieces were added.';
+    sh.querySelector('#bEnd').hidden=false;
+  });
+  sh.querySelector('#bSave').addEventListener('click',e=>guard(e.currentTarget,async()=>{
+    for(const iid of created){
+      const it=S.items.get(iid);if(!it)continue;
+      const name=sh.querySelector(`[data-bname="${iid}"]`)?.value.trim()||it.name,type=sh.querySelector(`[data-btype="${iid}"]`)?.value||it.type;
+      const pv=sh.querySelector(`[data-bprice="${iid}"]`)?.value,price=pv?Math.round(Number(pv)*100)/100:it.price;
+      if(name!==it.name||type!==it.type||price!==it.price)await saveDoc('items',iid,{...it,name,type,group:GROUP_OF[type]||it.group||'Other',price});
+    }
+    closeSheet();toast(`Added ${created.length} piece${created.length===1?'':'s'}`);
+  }));
+}
 
 function typeSelect(cur){
   const known=GROUP_OF[cur]||!cur;
@@ -547,8 +705,17 @@ function itemSheet(id){
       <div class="field"><label for="fGroup">Goes with</label><select id="fGroup">${GROUPS.map(([g])=>`<option>${g}</option>`).join('')}</select></div>
     </div>
     ${closets.length>1?`<div class="field"><label for="fCloset">Closet</label><select id="fCloset">${closets.map(([cid,c])=>`<option value="${cid}" ${cid===defCloset?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`:''}
-    <div class="field"><label for="fCol">Colour</label><input id="fCol" value="${esc(it?.colour)}" placeholder="navy" autocomplete="off">
-      <div class="swatches">${COLOURS.map(c=>`<button type="button" data-sw="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">Main colour</span>
+      <div class="colrow"><span class="bigsw" id="mainSw"></span><b id="mainName">Not set</b>
+        <label class="btn sm pickbtn">Custom<input type="color" id="mainPick" aria-label="Choose an exact colour"></label>
+        <button class="btn sm" type="button" id="fromPhoto">From photo</button></div>
+      <div class="swatches" role="group" aria-label="Main colour">${GENERIC.map(([n,h])=>`<button type="button" data-main="${n}" style="background:${h}" aria-label="${n}" title="${n}"></button>`).join('')}</div>
+      <div class="eyedrop" id="eyedrop" hidden><p class="muted" style="margin:0;font-size:13px">Tap the part of the photo that shows the main colour.</p><canvas id="eyeCanvas"></canvas><button class="linkbtn" type="button" id="eyeCancel">Cancel</button></div>
+    </div>
+    <div class="field"><span class="lbl">Secondary colours <small class="muted" style="text-transform:none;letter-spacing:0">(tap all that apply)</small></span>
+      <div class="swatches" role="group" aria-label="Secondary colours">${GENERIC.map(([n,h])=>`<button type="button" data-sec="${n}" style="background:${h}" aria-label="${n}" title="${n}"></button>`).join('')}</div>
+      <p class="muted" id="secNames" style="margin:0;font-size:13px"></p>
+    </div>
     <div class="field"><label for="fSty">Style</label><input id="fSty" list="styleList" value="${esc(it?.style)}" placeholder="casual, work, going out…" autocomplete="off">
       <datalist id="styleList">${[...new Set([...styles,'casual','work','going out','athletic','formal','lounge','vintage'])].map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
     <div class="btns"><button class="btn primary" type="button" id="save">${it?'Save changes':'Add to closet'}</button>
@@ -561,7 +728,20 @@ function itemSheet(id){
     const show=()=>{const has=st.blob||st.id;prev.className='ph'+(has&&st.cutout?' cut':'');
       prev.innerHTML=st.blob?`<img src="${URL.createObjectURL(st.blob)}" alt="">`:st.id?img(st.id):`<span class="hint">Add ${k} photo</span>`;
       cutB.hidden=!has||st.cutout;clr.hidden=!has;cutMsg.textContent=''};
-    slot.querySelector('[data-file]').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const r=await shrink(f);st.blob=r.blob;st.cutout=r.cutout;show()}catch(err){toast('That file type isn’t supported. Try a JPEG or PNG.')}});
+    slot.querySelector('[data-file]').addEventListener('change',async e=>{
+      const f=e.target.files[0];e.target.value='';if(!f)return;
+      try{const r=await shrink(f);st.blob=r.blob;st.cutout=r.cutout;show()}catch(err){toast('That file type isn’t supported. Try a JPEG or PNG.');return}
+      const nameEl=sh.querySelector('#fName');
+      if(k==='front'&&!nameEl.value.trim()&&ls.get('closet.autoDetect')!=='off'){
+        try{
+          const g=await autoDetect(st.blob,st.cutout,m=>cutMsg.textContent=m);
+          if(!nameEl.value.trim())nameEl.value=g.name;
+          const tSel=sh.querySelector('#fType');if(!id||!it?.type)tSel.value=g.type;
+          if(!COL.name&&g.colour){COL.name=g.colour;COL.hex=g.colourHex;COL.sec=new Set((g.colours2||[]).filter(n=>n!==g.colour));paintCol()}
+          cutMsg.textContent=`Detected ${g.name.toLowerCase()} (${g.type}). Change anything that’s wrong.`;
+        }catch(err){console.error(err);cutMsg.textContent='Couldn’t recognize the item automatically. Fill in the details below.'}
+      }
+    });
     clr.addEventListener('click',()=>{st.blob=null;st.id=null;st.cutout=false;show()});
     cutB.addEventListener('click',async()=>{
       cutB.disabled=true;
@@ -571,14 +751,46 @@ function itemSheet(id){
     });
   });
   const tSel=sh.querySelector('#fType');tSel.addEventListener('change',()=>{sh.querySelector('#newTypeRow').hidden=tSel.value!=='__new'});
-  sh.querySelectorAll('[data-sw]').forEach(b=>b.addEventListener('click',()=>{sh.querySelector('#fCol').value=b.dataset.sw}));
+  // colour state: main (plain name + exact shade) and a set of secondary names
+  const COL={name:genericName(it?.colour)||'',hex:it?.colourHex||null,sec:new Set(it?.colours2||[])};
+  function paintCol(){
+    const sw=COL.hex||GEN_HEX[COL.name]||okColour(COL.name);
+    sh.querySelector('#mainSw').style.background=sw||'transparent';sh.querySelector('#mainSw').classList.toggle('empty',!sw);
+    sh.querySelector('#mainName').textContent=COL.name?COL.name[0].toUpperCase()+COL.name.slice(1):'Not set';
+    if(COL.hex)sh.querySelector('#mainPick').value=COL.hex;
+    sh.querySelectorAll('[data-main]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.main===COL.name));
+    sh.querySelectorAll('[data-sec]').forEach(b=>b.setAttribute('aria-pressed',COL.sec.has(b.dataset.sec)));
+    sh.querySelector('#secNames').textContent=COL.sec.size?[...COL.sec].join(', '):'None';
+  }
+  sh.querySelectorAll('[data-main]').forEach(b=>b.addEventListener('click',()=>{const n=b.dataset.main;if(COL.name===n&&!COL.hex){COL.name=''}else{COL.name=n;COL.hex=null;COL.sec.delete(n)}paintCol()}));
+  sh.querySelectorAll('[data-sec]').forEach(b=>b.addEventListener('click',()=>{const n=b.dataset.sec;COL.sec.has(n)?COL.sec.delete(n):COL.sec.add(n);paintCol()}));
+  sh.querySelector('#mainPick').addEventListener('input',e=>{COL.hex=e.target.value;COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol()});
+  const eye=sh.querySelector('#eyedrop'),ec=sh.querySelector('#eyeCanvas');
+  sh.querySelector('#fromPhoto').addEventListener('click',async()=>{
+    const st=P.front.blob||P.back.blob?(P.front.blob?P.front:P.back):(P.front.id?P.front:P.back.id?P.back:null);
+    if(!st){toast('Add a photo first.');return}
+    const blob=st.blob||await idbGet('images',st.id);if(!blob){toast('That photo isn’t on this device yet.');return}
+    const im=await loadImage(URL.createObjectURL(blob));const sc=Math.min(1,900/Math.max(im.naturalWidth,im.naturalHeight));
+    ec.width=Math.round(im.naturalWidth*sc);ec.height=Math.round(im.naturalHeight*sc);
+    const g=ec.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,ec.width,ec.height);g.drawImage(im,0,0,ec.width,ec.height);URL.revokeObjectURL(im.src);
+    eye.hidden=false;eye.scrollIntoView({block:'center',behavior:'smooth'});
+  });
+  sh.querySelector('#eyeCancel').addEventListener('click',()=>{eye.hidden=true});
+  ec.addEventListener('click',e=>{
+    const r=ec.getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*ec.width),y=Math.round((e.clientY-r.top)/r.height*ec.height);
+    const k=3,d=ec.getContext('2d').getImageData(clamp(x-k,0,ec.width-1),clamp(y-k,0,ec.height-1),k*2+1,k*2+1).data;
+    let R=0,G=0,B=0,n=0;for(let i=0;i<d.length;i+=4){R+=d[i];G+=d[i+1];B+=d[i+2];n++}
+    COL.hex=rgbToHex(R/n,G/n,B/n);COL.name=hexToName(COL.hex);COL.sec.delete(COL.name);paintCol();eye.hidden=true;
+    toast(`Main colour set to ${COL.name}`);
+  });
+  paintCol();
   const save=sh.querySelector('#save');
   save.addEventListener('click',()=>guard(save,async()=>{
     const name=sh.querySelector('#fName').value.trim();if(!name){sh.querySelector('#fName').focus();toast('Give it a name first.');return}
     let type=tSel.value,group=GROUP_OF[type]||it?.group||'Other';
     if(type==='__new'){type=sh.querySelector('#fNewType').value.trim();group=sh.querySelector('#fGroup').value;if(!type){sh.querySelector('#fNewType').focus();toast('Name the new type.');return}}
     const pv=sh.querySelector('#fPrice').value;
-    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:sh.querySelector('#fCol').value.trim(),style:sh.querySelector('#fSty').value.trim(),createdAt:it?.createdAt||Date.now()};
+    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:COL.name,colourHex:COL.hex||null,colours2:[...COL.sec].filter(n=>n!==COL.name),style:sh.querySelector('#fSty').value.trim(),createdAt:it?.createdAt||Date.now()};
     const drop=[];
     for(const[k,idKey,cutKey]of[['front','imageId','cutout'],['back','backImageId','backCutout']]){
       const st=P[k],oldId=it?.[idKey]||null;
