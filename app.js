@@ -204,7 +204,7 @@ async function repairCutout(blob){
   return{blob:await new Promise(r=>c.toBlob(r,'image/png')),fixed:todo.length};
 }
 // The models run in a background worker (ml-worker.js) so scrolling and drawing stay smooth while photos are processed.
-const ML_SAY={'rmbg-download':'Downloading the cut-out tool. This happens once (45–90 MB), so Wi-Fi helps…','rmbg-run':'Cutting out the background…',
+const ML_SAY={'rmbg-download':'Downloading the cut-out tool. This happens once and is about 45 MB, so Wi-Fi helps…','rmbg-run':'Cutting out the background…',
   'clip-download':'Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…','clip-run':'Recognizing the item…'};
 let MLW=null,mlSeq=0;const mlJobs=new Map();
 function ml(op,args,status){
@@ -935,7 +935,7 @@ function bulkSheet(){
   const msg=sh.querySelector('#bMsg'),list=sh.querySelector('#bList');
   const autoEl=sh.querySelector('#bAuto');
   autoEl.addEventListener('change',()=>ls.set('closet.autoDetect',autoEl.checked?null:'off'));
-  ml('warm',{rmbg:true,clip:autoEl.checked}).catch(e=>console.warn('warm',e));
+  ml('warm',{rmbg:true}).catch(e=>console.warn('warm',e));
   const created=[];
   sh.querySelector('#bFiles').addEventListener('change',async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
@@ -1256,6 +1256,14 @@ function syncSheet(){
 // (fill see-through specks, re-crop so the item fills its tile). fit level 3.
 async function refitCutouts(){
   let changed=0,bgDone=0;
+  const crashed=ls.get('closet.bgJob');
+  if(crashed){
+    ls.set('closet.bgJob',null);
+    const it=S.items.get(crashed);
+    if(it){const v={...it,fit:4,updatedAt:Date.now()};await idbPut('items',crashed,v);S.items.set(crashed,v)}
+    console.warn('skipped a photo that stopped the app last time',crashed);
+    return; // try the rest next time the app opens
+  }
   const bgTotal=[...S.items.values()].filter(it=>(it.fit||0)<4).reduce((n,it)=>n+(it.imageId&&!it.cutout?1:0)+(it.backImageId&&!it.backCutout?1:0),0);
   for(const[iid,it]of[...S.items]){
     if((it.fit||0)>=4)continue;
@@ -1265,7 +1273,9 @@ async function refitCutouts(){
       const blob=await idbGet('images',id);if(!blob)continue;
       if(!it[cutKey]){
         bgDone++;S.notice=`Removing backgrounds from your photos (${bgDone} of ${bgTotal}). Keep the app open.`;render();
+        ls.set('closet.bgJob',iid);
         try{v[idKey]=await addImage(await removeBg(blob,()=>{}));v[cutKey]=true;await dropImage(id)}catch(e){console.warn('auto background',e);failed=true}
+        ls.set('closet.bgJob',null);
         continue;
       }
       if((it.fit||0)>=2)continue;

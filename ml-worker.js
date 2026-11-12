@@ -5,18 +5,14 @@ async function loadT() {
   if (!T) { T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js'); T.env.allowLocalModels = false; }
   return T;
 }
-// Use the graphics chip (WebGPU) when the device has it: several times faster. Otherwise the CPU version.
-let rmbgGpu = null;
-async function loadRmbg(cpuOnly) {
-  if (RB && !(cpuOnly && RB.gpu)) return RB;
+// CPU version only: the graphics-chip (WebGPU) version used too much memory on iPhone and crashed the app.
+async function loadRmbg() {
+  if (RB) return RB;
   const T = await loadT();
-  let gpu = false;
-  if (!cpuOnly && rmbgGpu !== false) { try { gpu = !!(self.navigator.gpu && await self.navigator.gpu.requestAdapter()); } catch (e) { gpu = false; } }
-  const opts = gpu ? { device: 'webgpu', dtype: 'fp16' } : {};
   const [model, processor] = await Promise.all([
-    T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' }, ...opts }),
-    RB?.processor || T.AutoProcessor.from_pretrained('briaai/RMBG-1.4', { config: { do_normalize: true, do_pad: false, do_rescale: true, do_resize: true, image_mean: [0.5, 0.5, 0.5], feature_extractor_type: 'ImageFeatureExtractor', image_std: [1, 1, 1], resample: 2, rescale_factor: 0.00392156862745098, size: { width: 1024, height: 1024 } } })]);
-  return RB = { model, processor, gpu };
+    T.AutoModel.from_pretrained('briaai/RMBG-1.4', { config: { model_type: 'custom' } }),
+    T.AutoProcessor.from_pretrained('briaai/RMBG-1.4', { config: { do_normalize: true, do_pad: false, do_rescale: true, do_resize: true, image_mean: [0.5, 0.5, 0.5], feature_extractor_type: 'ImageFeatureExtractor', image_std: [1, 1, 1], resample: 2, rescale_factor: 0.00392156862745098, size: { width: 1024, height: 1024 } } })]);
+  return RB = { model, processor };
 }
 async function loadClip() {
   if (CLIP) return CLIP;
@@ -29,14 +25,11 @@ const ops = {
   // returns a one-byte-per-pixel mask at the photo's own size
   async rmbg({ blob }, say) {
     if (!RB) say('rmbg-download');
-    let R;
-    try { R = await loadRmbg(); } catch (e) { if (rmbgGpu !== null) throw e; console.warn('webgpu unavailable', e); rmbgGpu = false; R = await loadRmbg(true); }
+    const { model, processor } = await loadRmbg();
     say('rmbg-run');
     const image = await T.RawImage.fromBlob(blob);
-    const { pixel_values } = await R.processor(image);
-    let output;
-    try { ({ output } = await R.model({ input: pixel_values })); if (R.gpu) rmbgGpu = true; }
-    catch (e) { if (!R.gpu || rmbgGpu) throw e; console.warn('webgpu run failed, using cpu', e); rmbgGpu = false; R = await loadRmbg(true); ({ output } = await R.model({ input: pixel_values })); }
+    const { pixel_values } = await processor(image);
+    const { output } = await model({ input: pixel_values });
     const mask = await T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(image.width, image.height);
     const data = Uint8Array.from(mask.data);
     return { result: { mask: data, w: image.width, h: image.height }, transfer: [data.buffer] };
