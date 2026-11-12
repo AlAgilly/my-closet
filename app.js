@@ -105,15 +105,36 @@ async function addImage(blob){const id=newId();await idbPut('images',id,blob);UR
 async function dropImage(id){if(!id)return;await idbDel('images',id).catch(()=>{});const u=URLS.get(id);if(u)URL.revokeObjectURL(u);URLS.delete(id)}
 
 /* ---------- photos: resize, keep transparency, trim, background removal ---------- */
-async function loadImage(src){const im=new Image();im.src=src;await im.decode();return im}
+function loadImage(src){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error("image failed to load"));im.src=src})}
 function hasAlpha(canvas){
   const s=document.createElement('canvas');s.width=64;s.height=64;const g=s.getContext('2d');g.drawImage(canvas,0,0,64,64);
   const d=g.getImageData(0,0,64,64).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i]<200)n++;return n>40;
+}
+// Keep only the item: solid regions (alpha >= 200) that are at least 2% the size of the biggest one,
+// plus a 3px soft edge around them. Faint background haze, ghost boxes and stray blobs are cleared.
+function keepItemOnly(d,w,h){
+  const N=w*h,lab=new Int32Array(N),q=new Int32Array(N),sizes=[0];let nl=0;
+  for(let s=0;s<N;s++){
+    if(lab[s]||d[s*4+3]<200)continue;
+    nl++;let qh=0,qt=0;q[qt++]=s;lab[s]=nl;
+    while(qh<qt){const i=q[qh++],x=i%w;
+      if(x>0&&!lab[i-1]&&d[(i-1)*4+3]>=200){lab[i-1]=nl;q[qt++]=i-1}
+      if(x<w-1&&!lab[i+1]&&d[(i+1)*4+3]>=200){lab[i+1]=nl;q[qt++]=i+1}
+      if(i>=w&&!lab[i-w]&&d[(i-w)*4+3]>=200){lab[i-w]=nl;q[qt++]=i-w}
+      if(i<N-w&&!lab[i+w]&&d[(i+w)*4+3]>=200){lab[i+w]=nl;q[qt++]=i+w}}
+    sizes.push(qt);
+  }
+  if(!nl)return;
+  const big=Math.max(...sizes),keep=sizes.map(z=>z>=big*.02);
+  let near=new Uint8Array(N);for(let i=0;i<N;i++)if(lab[i]&&keep[lab[i]])near[i]=1;
+  for(let r=0;r<3;r++){const nx=near.slice();for(let i=0;i<N;i++){if(near[i])continue;const x=i%w;if((x>0&&near[i-1])||(x<w-1&&near[i+1])||(i>=w&&near[i-w])||(i<N-w&&near[i+w]))nx[i]=1}near=nx}
+  for(let i=0;i<N;i++)if(!near[i])d[i*4+3]=0;
 }
 // Crop a transparent image to the item and centre it with even padding.
 // Faint halo pixels are cleared, and stray specks (rows/columns with only a few solid pixels) are ignored when finding the edges.
 async function trimToBlob(c){
   const g=c.getContext('2d');const{width:w,height:h}=c;const img=g.getImageData(0,0,w,h),d=img.data;
+  keepItemOnly(d,w,h);
   const rows=new Uint32Array(h),cols=new Uint32Array(w);
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4+3;if(d[i]<12){d[i]=0;continue}if(d[i]>=128){rows[y]++;cols[x]++}}
   g.putImageData(img,0,0);
@@ -1053,6 +1074,28 @@ function syncSheet(){
   }
 }
 
+// Re-crop cut-outs saved before the haze fix so every item fills its tile. Runs once per photo.
+async function refitCutouts(){
+  let changed=0;
+  for(const[iid,it]of[...S.items]){
+    if(it.fit>=1)continue;
+    const v={...it,fit:1};
+    for(const[idKey,cutKey]of[['imageId','cutout'],['backImageId','backCutout']]){
+      const id=it[idKey];if(!id||!it[cutKey])continue;
+      const blob=await idbGet('images',id);if(!blob)continue;
+      try{
+        const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+        const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);
+        const out=await trimToBlob(c);const om=await loadImage(URL.createObjectURL(out));URL.revokeObjectURL(om.src);
+        if(om.naturalWidth*om.naturalHeight<c.width*c.height*.9){v[idKey]=await addImage(out);await dropImage(id)}
+      }catch(e){console.warn('refit',e)}
+    }
+    if(!S.items.has(iid))continue;
+    v.updatedAt=Date.now();await idbPut('items',iid,v);S.items.set(iid,v);changed++;
+    await new Promise(r=>setTimeout(r,0));
+  }
+  if(changed){render();scheduleSync()}
+}
 /* ---------- boot ---------- */
 render();
 (async()=>{
@@ -1078,5 +1121,6 @@ render();
   setSync(GH.cfg()?'ok':'off');render();
   if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});
   if(GH.cfg())sync();
+  if(S.ready)setTimeout(()=>refitCutouts().catch(e=>console.warn(e)),1500);
 })();
 if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
