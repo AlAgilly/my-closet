@@ -388,10 +388,25 @@ async function applyLocal(m){
 async function putFile(path,body){
   for(let i=0;;i++){try{return await GH.req('contents/'+path,{method:'PUT',body:JSON.stringify(body)})}catch(e){if(i<2&&e.status===409){await new Promise(r=>setTimeout(r,800*(i+1)));continue}throw e}}
 }
-function setSync(state,msg=''){S.sync={state,msg};const d=$('#syncDot');if(d)d.className='syncdot'+({ok:' ok',busy:' busy',err:' err'}[state]||'');const s=$('#syncStatus');if(s)s.textContent=syncText()}
+// Header badge: a cloud with a mark for the state, plus a short label (last sync time, Waiting, Syncing…).
+const SYNC_MARK={ok:'<path d="M9.6 13.6l1.8 1.8 3.2-3.4"/>',pending:'<path d="M12 16.2v-5M9.9 13.1l2.1-2.1 2.1 2.1"/>',busy:'<path d="M12 16.2v-5M9.9 13.1l2.1-2.1 2.1 2.1"/>',
+  err:'<path d="M12 11v2.6M12 15.9v.1"/>',off:'<path d="M4 4l16 16"/>'};
+function syncAgo(t){const m=Math.round((Date.now()-t)/60000);if(m<1)return 'now';if(m<60)return m+'m ago';const h=Math.round(m/60);if(h<24)return h+'h ago';
+  return new Date(t).toLocaleDateString('en-CA',{month:'short',day:'numeric'})}
+function paintSync(){
+  const b=$('#syncBtn');if(!b)return;
+  const st=GH.cfg()?S.sync.state:'off',t=Number(ls.get('closet.lastSync'));
+  const label={ok:t?syncAgo(t):'Not synced',pending:'Waiting',busy:'Syncing…',err:navigator.onLine?'Error':'Offline',off:'Back up'}[st]||'';
+  b.className='syncpill '+st;
+  b.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 18.5h9.6a4.2 4.2 0 0 0 .6-8.36A5.9 5.9 0 0 0 6.2 9.4a4.6 4.6 0 0 0 1 9.1z"/>${SYNC_MARK[st]||''}</svg><span>${label}</span>`;
+  b.setAttribute('aria-label','GitHub sync: '+syncText());
+}
+function setSync(state,msg=''){S.sync={state,msg};paintSync();const s=$('#syncStatus');if(s)s.textContent=syncText()}
+setInterval(paintSync,30000);
 function syncText(){
   if(!GH.cfg())return 'Not connected. Your closet is only saved on this device.';
   if(S.sync.state==='busy')return 'Syncing…';
+  if(S.sync.state==='pending')return 'You have changes waiting to upload. They sync in a few seconds.';
   if(S.sync.state==='err')return S.sync.msg;
   const t=Number(ls.get('closet.lastSync'));
   return t?`Synced ${new Date(t).toLocaleString('en-CA',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`:'Connected. Not synced yet.';
@@ -405,7 +420,7 @@ function syncError(e){
 }
 const extOf=t=>t==='image/png'?'png':'jpg';
 let syncing=null,syncAgain=false,syncTimer=null;
-function scheduleSync(delay=2500){if(!GH.cfg())return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>sync(),delay)}
+function scheduleSync(delay=2500){if(!GH.cfg())return;if(S.sync.state!=='busy')setSync('pending');clearTimeout(syncTimer);syncTimer=setTimeout(()=>sync(),delay)}
 function sync(){
   if(!GH.cfg()||!S.ready)return Promise.resolve();
   if(syncing){syncAgain=true;return syncing}
@@ -520,7 +535,7 @@ function render(){
   if(S.closet!=='all'&&!S.closets.has(S.closet))S.closet='all';
   const its=[...S.items.values()].filter(i=>inCloset(i,S.closet));
   const total=its.reduce((a,i)=>a+(Number(i.price)||0),0);
-  $('#sub').textContent=`${its.length} piece${its.length===1?'':'s'}${total?' · '+money(total):''}`;
+  $('#sub').innerHTML=`${its.length} piece${its.length===1?'':'s'}${total?`<span class="subp"> · ${esc(money(total))}</span>`:''}`;
   let notice=S.notice?`<div class="notice" role="status">${esc(S.notice)}</div>`:'';
   if(!notice&&S.ready&&!GH.cfg()&&S.items.size)notice=`<div class="notice">Your closet is only saved on this device. <button type="button" data-open-sync>Back it up to GitHub</button></div>`;
   const y=window.scrollY;
@@ -548,7 +563,7 @@ function closetView(){
   const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
   return top+`
     <div class="cats" role="group" aria-label="Type">${catBtn('All','All',all.length)}${Object.keys(types).sort((a,b)=>typeRank(a)-typeRank(b)||a.localeCompare(b)).map(t=>catBtn(t,t,types[t])).join('')}</div>
-    <input class="search" id="q" type="search" placeholder="Search name, type, colour, style" value="${esc(S.q)}" aria-label="Search closet">
+    <input class="search" id="q" type="search" placeholder="Search your closet" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(S.q)}" aria-label="Search closet">
     <div class="row">
       <select id="fColour" aria-label="Colour"><option value="">All colours</option>${colours.map(c=>`<option ${S.colour===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select id="fStyle" aria-label="Style"><option value="">All styles</option>${styles.map(c=>`<option ${S.style===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
@@ -1032,7 +1047,7 @@ function pickerHTML(sel){
   if(!S.items.size)return `<p class="muted" style="margin:0">Add pieces to your closet first.</p>`;
   const items=[...S.items.entries()].sort((a,b)=>typeRank(typeOf(a[1]))-typeRank(typeOf(b[1]))||(a[1].name||'').localeCompare(b[1].name||''));
   const multi=S.closets.size>1;
-  return `<input class="search" type="search" id="pkQ" placeholder="Find a piece by name, type or closet" aria-label="Find a piece"><div class="picker" id="picker">${items.map(([id,i])=>`<button type="button" class="pk" data-pk="${id}" data-txt="${esc([i.name,i.colour,i.style,typeOf(i),groupOf(i),multi?closetName(closetOf(i)):''].join(' ').toLowerCase())}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`).join('')}</div>`;
+  return `<input class="search" type="search" id="pkQ" placeholder="Search pieces" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Find a piece"><div class="picker" id="picker">${items.map(([id,i])=>`<button type="button" class="pk" data-pk="${id}" data-txt="${esc([i.name,i.colour,i.style,typeOf(i),groupOf(i),multi?closetName(closetOf(i)):''].join(' ').toLowerCase())}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`).join('')}</div>`;
 }
 function wirePicker(sh,sel,onChange){
   sh.querySelectorAll('[data-pk]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.pk;sel.has(id)?sel.delete(id):sel.add(id);b.setAttribute('aria-pressed',sel.has(id));onChange&&onChange()}));
