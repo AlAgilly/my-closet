@@ -1,5 +1,5 @@
 // Offline support: network first, cached copy when offline. Only caches this site and Google Fonts — never GitHub API calls.
-const CACHE = 'closet-v6';
+const CACHE = 'closet-v7';
 const CORE = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

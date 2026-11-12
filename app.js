@@ -115,7 +115,7 @@ function hasAlpha(canvas){
 async function trimToBlob(c){
   const g=c.getContext('2d');const{width:w,height:h}=c;const img=g.getImageData(0,0,w,h),d=img.data;
   const rows=new Uint32Array(h),cols=new Uint32Array(w);
-  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4+3;if(d[i]<28){d[i]=0;continue}if(d[i]>=128){rows[y]++;cols[x]++}}
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4+3;if(d[i]<12){d[i]=0;continue}if(d[i]>=128){rows[y]++;cols[x]++}}
   g.putImageData(img,0,0);
   const minR=Math.max(2,Math.round(w*.006)),minC=Math.max(2,Math.round(h*.006));
   let y0=0,y1=h-1,x0=0,x1=w-1;
@@ -135,6 +135,51 @@ async function shrink(file){
   c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);
   if(hasAlpha(c))return{blob:await trimToBlob(c),cutout:true};
   return{blob:await new Promise(r=>c.toBlob(r,'image/jpeg',.85)),cutout:false};
+}
+// Fix see-through specks inside a cut-out. `a` is the alpha channel (one byte per pixel).
+// 1) Background = see-through pixels connected to the image border. 2) Small see-through islands
+// enclosed by the item become solid; large ones (e.g. inside a bag handle) stay as background.
+// 3) Semi-see-through pixels more than 3px from the background become solid (soft outer edges kept).
+function cleanAlpha(a,w,h){
+  const N=w*h,bg=new Uint8Array(N),q=new Int32Array(N);let qh=0,qt=0;
+  const push=i=>{if(!bg[i]&&a[i]<128){bg[i]=1;q[qt++]=i}};
+  for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
+  while(qh<qt){const i=q[qh++],x=i%w;if(x>0)push(i-1);if(x<w-1)push(i+1);if(i>=w)push(i-w);if(i<N-w)push(i+w)}
+  const seen=new Uint8Array(N),maxHole=Math.max(64,N*.003);
+  for(let s=0;s<N;s++){
+    if(bg[s]||seen[s]||a[s]>=128)continue;
+    qh=0;qt=0;q[qt++]=s;seen[s]=1;
+    while(qh<qt){const i=q[qh++],x=i%w;
+      if(x>0&&!seen[i-1]&&a[i-1]<128){seen[i-1]=1;q[qt++]=i-1}
+      if(x<w-1&&!seen[i+1]&&a[i+1]<128){seen[i+1]=1;q[qt++]=i+1}
+      if(i>=w&&!seen[i-w]&&a[i-w]<128){seen[i-w]=1;q[qt++]=i-w}
+      if(i<N-w&&!seen[i+w]&&a[i+w]<128){seen[i+w]=1;q[qt++]=i+w}}
+    if(qt<=maxHole)for(let k=0;k<qt;k++)a[q[k]]=255;else for(let k=0;k<qt;k++)bg[q[k]]=1;
+  }
+  let near=bg;
+  for(let r=0;r<3;r++){const nx=near.slice();for(let i=0;i<N;i++){if(near[i])continue;const x=i%w;if((x>0&&near[i-1])||(x<w-1&&near[i+1])||(i>=w&&near[i-w])||(i<N-w&&near[i+w]))nx[i]=1}near=nx}
+  for(let i=0;i<N;i++)if(!near[i]&&a[i]<255)a[i]=255;
+}
+// Repair an already-saved cut-out: fill specks using the colour of the surrounding fabric.
+async function repairCutout(blob){
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+  const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const g=c.getContext('2d');g.drawImage(im,0,0);
+  const w=c.width,h=c.height,N=w*h,img=g.getImageData(0,0,w,h),d=img.data;
+  const before=new Uint8Array(N),a=new Uint8Array(N);for(let i=0;i<N;i++){a[i]=before[i]=d[i*4+3]}
+  cleanAlpha(a,w,h);
+  const todo=[];for(let i=0;i<N;i++)if(a[i]!==before[i]){if(before[i]<200)todo.push(i);else d[i*4+3]=a[i]}
+  const known=new Uint8Array(N);for(let i=0;i<N;i++)known[i]=before[i]>=200?1:0;
+  let left=todo;
+  for(let pass=0;pass<60&&left.length;pass++){
+    const next=[],fill=[];
+    for(const i of left){const x=i%w,y=(i/w)|0;let r=0,gg=0,b=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=w||yy>=h)continue;const j=yy*w+xx;if(known[j]){r+=d[j*4];gg+=d[j*4+1];b+=d[j*4+2];n++}}
+      if(n)fill.push([i,r/n,gg/n,b/n]);else next.push(i)}
+    for(const[i,r,gg,b]of fill){d[i*4]=r;d[i*4+1]=gg;d[i*4+2]=b;d[i*4+3]=255;known[i]=1}
+    left=next;
+  }
+  g.putImageData(img,0,0);
+  return{blob:await new Promise(r=>c.toBlob(r,'image/png')),fixed:todo.length};
 }
 let TJS=null;
 async function loadT(){if(!TJS){TJS=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js');TJS.env.allowLocalModels=false}return TJS}
@@ -156,7 +201,8 @@ async function removeBg(blob,status){
     const mask=await RB.T.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(image.width,image.height);
     const c=document.createElement('canvas');c.width=image.width;c.height=image.height;const g=c.getContext('2d');
     g.drawImage(await loadImage(url),0,0,c.width,c.height);
-    const d=g.getImageData(0,0,c.width,c.height);for(let i=0;i<mask.data.length;i++)d.data[4*i+3]=mask.data[i];g.putImageData(d,0,0);
+    const alpha=Uint8Array.from(mask.data);cleanAlpha(alpha,c.width,c.height);
+    const d=g.getImageData(0,0,c.width,c.height);for(let i=0;i<alpha.length;i++)d.data[4*i+3]=alpha[i];g.putImageData(d,0,0);
     return await trimToBlob(c);
   }finally{URL.revokeObjectURL(url)}
 }
@@ -743,6 +789,7 @@ function itemSheet(id){
         <label class="photo"><div class="ph${cut&&URLS.has(pid)?' cut':''}" data-prev>${pid&&URLS.has(pid)?img(pid):`<span class="hint">Add ${l.toLowerCase()} photo</span>`}</div><input type="file" accept="image/*" data-file aria-label="${l} photo"></label>
         <div class="plabel">${l}</div>
         <button class="btn sm" type="button" data-cut ${pid&&URLS.has(pid)&&!cut?'':'hidden'}>Remove background</button>
+        <button class="btn sm" type="button" data-fix ${pid&&URLS.has(pid)&&cut?'':'hidden'}>Clean up specks</button>
         <button class="linkbtn" type="button" data-clear ${pid&&URLS.has(pid)?'':'hidden'}>Remove photo</button>
       </div>`).join('')}</div>
     <p class="muted" id="cutMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
@@ -775,10 +822,10 @@ function itemSheet(id){
   const P={front:{id:it?.imageId||null,cutout:!!it?.cutout,blob:null},back:{id:it?.backImageId||null,cutout:!!it?.backCutout,blob:null}};
   const cutMsg=sh.querySelector('#cutMsg');
   sh.querySelectorAll('[data-slot]').forEach(slot=>{
-    const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),cutB=slot.querySelector('[data-cut]'),clr=slot.querySelector('[data-clear]');
+    const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),cutB=slot.querySelector('[data-cut]'),fixB=slot.querySelector('[data-fix]'),clr=slot.querySelector('[data-clear]');
     const show=()=>{const has=st.blob||st.id;prev.className='ph'+(has&&st.cutout?' cut':'');
       prev.innerHTML=st.blob?`<img src="${URL.createObjectURL(st.blob)}" alt="">`:st.id?img(st.id):`<span class="hint">Add ${k} photo</span>`;
-      cutB.hidden=!has||st.cutout;clr.hidden=!has;cutMsg.textContent=''};
+      cutB.hidden=!has||st.cutout;fixB.hidden=!has||!st.cutout;clr.hidden=!has;cutMsg.textContent=''};
     slot.querySelector('[data-file]').addEventListener('change',async e=>{
       const f=e.target.files[0];e.target.value='';if(!f)return;
       try{const r=await shrink(f);st.blob=r.blob;st.cutout=r.cutout;show()}catch(err){toast('That file type isn’t supported. Try a JPEG or PNG.');return}
@@ -794,6 +841,14 @@ function itemSheet(id){
       }
     });
     clr.addEventListener('click',()=>{st.blob=null;st.id=null;st.cutout=false;show()});
+    fixB.addEventListener('click',async()=>{
+      fixB.disabled=true;
+      try{const src=st.blob||await idbGet('images',st.id);const r=await repairCutout(src);
+        if(!r.fixed){cutMsg.textContent='No specks found in this photo.';return}
+        st.blob=r.blob;st.cutout=true;show();cutMsg.textContent=`Filled ${r.fixed.toLocaleString()} speck pixel${r.fixed===1?'':'s'}. Tap Save to keep it.`}
+      catch(err){console.error(err);cutMsg.textContent='Couldn’t clean up this photo.'}
+      finally{fixB.disabled=false}
+    });
     cutB.addEventListener('click',async()=>{
       cutB.disabled=true;
       try{const src=st.blob||await idbGet('images',st.id);st.blob=await removeBg(src,m=>cutMsg.textContent=m);st.cutout=true;show();cutMsg.textContent='Background removed. Tap Save to keep it.'}
