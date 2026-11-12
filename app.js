@@ -2,7 +2,7 @@
 /* My Closet: data lives in this device's IndexedDB and syncs to a private GitHub repo the user owns. */
 
 const GROUPS=[
-  ['Tops',['T-shirts','Tank tops','Bodysuits','Shirts','Blouses','Sweaters','Hoodies','Cardigans']],
+  ['Tops',['T-shirts','Tank tops','Bodysuits','Shirts','Sweaters','Hoodies','Cardigans']],
   ['Bottoms',['Jeans','Pants','Shorts','Skirts','Leggings','Sweatpants']],
   ['One-pieces',['Dresses','Jumpsuits']],
   ['Outerwear',['Jackets','Coats','Blazers','Vests']],
@@ -26,7 +26,7 @@ function rgbToName(r,g,b){
   if(l<.13)return 'black';
   if(s<.12||(s<.2&&l>.25&&l<.85))return l>.86?'white':l<.22?'black':'grey';
   if(l>.9&&(s<.3||h<35||h>=75))return 'white';
-  if(h>=15&&h<50){if(l<.42)return 'brown';if(s<.55&&l>.58)return 'beige';return h<40?'orange':'yellow'}
+  if(h>=15&&h<50){if(s>=.6&&l>=.35&&l<=.78)return h<40?'orange':'yellow';return l<.4?'brown':'beige'}
   if(h<15||h>=345)return l>.72?'pink':(l<.3&&s<.6?'brown':'red');
   if(h<75){if(l<.32)return 'green';return (s<.45&&l>.6)||l>.85?'beige':'yellow'}
   if(h<170)return 'green';
@@ -162,13 +162,13 @@ async function removeBg(blob,status){
 }
 
 /* ---------- auto-detect: type (on-device CLIP), colour (pixels), name ---------- */
-const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants','Shirts':'a button-up shirt','Blouses':'a blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
+const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants','Shirts':'a shirt or blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
   'Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt','Leggings':'a pair of leggings','Sweatpants':'a pair of sweatpants',
   'Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
   'Sneakers':'a pair of sneakers','Boots':'a pair of boots','Heels':'a pair of high heels','Flats':'a pair of flat shoes','Sandals':'a pair of sandals','Loafers':'a pair of loafers',
   'Bags':'a handbag','Hats':'a hat','Jewelry':'a piece of jewelry','Belts':'a belt','Scarves':'a scarf','Sunglasses':'a pair of sunglasses','Watches':'a wristwatch',
   'Sleepwear':'a pair of pajamas'};
-const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Bodysuits':'bodysuit','Shirts':'shirt','Blouses':'blouse','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
+const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Bodysuits':'bodysuit','Shirts':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
   'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneakers','Boots':'boots','Heels':'heels','Flats':'flats','Sandals':'sandals','Loafers':'loafers',
   'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Swimwear':'swimsuit','Sleepwear':'pajamas'};
 let CLIP=null;
@@ -466,7 +466,7 @@ const ICON={
   sleep:'<path d="M19 14.5A7.2 7.2 0 1 1 9.5 5a5.8 5.8 0 0 0 9.5 9.5z"/>',
   active:'<path d="M13.4 3 6 13.4h5.2L10.4 21l7.6-10.4h-5.2z"/>',
   other:'<path d="M12 7a2 2 0 1 1 2-2c0 1-2 1.5-2 3v1"/><path d="M12 9 3 16a1.2 1.2 0 0 0 .8 2.1h16.4A1.2 1.2 0 0 0 21 16z"/>'};
-const TYPE_ICON={'T-shirts':'tshirt','Tank tops':'tank','Bodysuits':'bodysuit','Shirts':'shirt','Blouses':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'pants',
+const TYPE_ICON={'T-shirts':'tshirt','Tank tops':'tank','Bodysuits':'bodysuit','Shirts':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'pants',
   'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneaker','Boots':'boot','Heels':'heel','Flats':'flats','Sandals':'sandal','Loafers':'loafer',
   'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Activewear':'active','Swimwear':'swim','Sleepwear':'sleep','Other':'other'};
 const GROUP_ICON={Tops:'tshirt',Bottoms:'pants','One-pieces':'dress',Outerwear:'jacket',Shoes:'sneaker',Bags:'bag',Accessories:'hat',Other:'other'};
@@ -1010,6 +1010,15 @@ render();
     IDB=await idbOpen();
     for(const col of COLS)S[col]=await idbAll(col);
     S.deleted=new Map(Object.entries((await idbGet('meta','deleted'))||{}));
+    // re-name colours from their saved exact shade with the current rules (fixes earlier beige→orange guesses)
+    for(const[iid,it]of S.items){
+      if(!it.colourHex)continue;const nn=hexToName(it.colourHex),old=genericName(it.colour);if(nn===old)continue;
+      const cap=w=>w?w[0].toUpperCase()+w.slice(1):w,word=SINGULAR[it.type]||(it.type||'').toLowerCase();
+      const v={...it,colour:nn,colours2:(it.colours2||[]).filter(c=>c!==nn),updatedAt:Date.now()};
+      if(it.name===`${cap(old)} ${word}`)v.name=`${cap(nn)} ${word}`;
+      await idbPut('items',iid,v);S.items.set(iid,v);
+    }
+    for(const[iid,it]of S.items)if(it.type==='Blouses'){const v={...it,type:'Shirts',group:'Tops',updatedAt:Date.now()};await idbPut('items',iid,v);S.items.set(iid,v)}
     if(!S.closets.has(MAIN)&&!S.deleted.has('closets/'+MAIN)){const c={name:'My Closet',createdAt:1,updatedAt:1};await idbPut('closets',MAIN,c);S.closets.set(MAIN,c)}
     for(const[id,b]of await idbAll('images'))URLS.set(id,URL.createObjectURL(b));
     S.ready=true;
