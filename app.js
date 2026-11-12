@@ -6,7 +6,7 @@ const GROUPS=[
   ['Bottoms',['Jeans','Pants','Shorts','Skirts','Leggings','Sweatpants']],
   ['One-pieces',['Dresses','Jumpsuits']],
   ['Outerwear',['Jackets','Coats','Blazers','Vests']],
-  ['Shoes',['Sneakers','Boots','Heels','Flats','Sandals','Loafers']],
+  ['Shoes',['Sneakers','Boots','Shoes','Sandals','Loafers']],
   ['Bags',['Bags']],
   ['Accessories',['Hats','Jewelry','Belts','Scarves','Sunglasses','Watches']],
   ['Other',['Activewear','Sleepwear','Other']]];
@@ -165,11 +165,11 @@ async function removeBg(blob,status){
 const TYPE_PHRASE={'T-shirts':'a t-shirt','Tank tops':'a tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants','Shirts':'a shirt or blouse','Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan',
   'Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt','Leggings':'a pair of leggings','Sweatpants':'a pair of sweatpants',
   'Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
-  'Sneakers':'a pair of sneakers','Boots':'a pair of boots','Heels':'a pair of high heels','Flats':'a pair of flat shoes','Sandals':'a pair of sandals','Loafers':'a pair of loafers',
+  'Sneakers':'a pair of sneakers','Boots':'a pair of boots','Shoes':'a pair of dress shoes such as heels, pumps or ballet flats','Sandals':'a pair of sandals','Loafers':'a pair of loafers',
   'Bags':'a handbag','Hats':'a hat','Jewelry':'a piece of jewelry','Belts':'a belt','Scarves':'a scarf','Sunglasses':'a pair of sunglasses','Watches':'a wristwatch',
   'Sleepwear':'a pair of pajamas'};
 const SINGULAR={'T-shirts':'t-shirt','Tank tops':'tank top','Bodysuits':'bodysuit','Shirts':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'sweatpants',
-  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneakers','Boots':'boots','Heels':'heels','Flats':'flats','Sandals':'sandals','Loafers':'loafers',
+  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneakers','Boots':'boots','Shoes':'shoes','Sandals':'sandals','Loafers':'loafers',
   'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Swimwear':'swimsuit','Sleepwear':'pajamas'};
 let CLIP=null;
 async function loadClip(status){
@@ -434,7 +434,7 @@ const ICON={
   tshirt:'<path d="M8.5 4 4 6.6l1.6 4 2-.9V20h8.8V9.7l2 .9 1.6-4L15.5 4a3.6 3.6 0 0 1-7 0z"/>',
   bodysuit:'<path d="M9 3.2 5.4 5.2 3.6 14.5h2.3L7.6 9v6.3c0 1.6 1.2 2.6 2.4 3.4l2 1.3 2-1.3c1.2-.8 2.4-1.8 2.4-3.4V9l1.7 5.5h2.3L18.6 5.2 15 3.2a3 3 0 0 1-6 0z"/><path d="M7.6 15.3c1.6 0 3 1 4.4 4.7 1.4-3.7 2.8-4.7 4.4-4.7"/>',
   tank:'<path d="M9 3v2.5a3 3 0 0 0 6 0V3M9 3c0 2.5-2 3.5-2 6.5V20h10V9.5C17 6.5 15 5.5 15 3"/>',
-  shirt:'<path d="M8.5 3.5 4.5 5.8 3 18.2l2.6.6L7.2 11v9h9.6v-9l1.6 7.8 2.6-.6-1.5-12.4-4-2.3"/><path d="M8.5 3.5 12 7l3.5-3.5M12 7v13M10.5 10.5h.01M10.5 14h.01"/>',
+  shirt:'<path d="M8.8 3.2 5 4.8c-.6.3-1 .8-1.1 1.5L2.6 17.6l2.7.7 2.1-8V21h9.2V10.3l2.1 8 2.7-.7-1.3-11.3c-.1-.7-.5-1.2-1.1-1.5l-3.8-1.6"/><path d="M8.8 3.2 10.2 8 12 6l1.8 2 1.4-4.8M8.8 3.2c1 .6 2.1.9 3.2.9s2.2-.3 3.2-.9M12 6v15M2.9 16l2.6.7M21.1 16l-2.6.7"/><circle cx="12.9" cy="10.6" r=".35"/><circle cx="12.9" cy="14" r=".35"/><circle cx="12.9" cy="17.4" r=".35"/>',
   sweater:'<path d="M8.5 4 4.5 6 2.8 18.6h2.5L7.2 11v9h9.6v-9l1.9 7.6h2.5L19.5 6l-4-2a3.6 3.6 0 0 1-7 0z"/><path d="M7.2 17.5h9.6"/>',
   hoodie:'<path d="M8.8 4.4 4.6 6.8 3 18.6h2.5L7.2 11v9h9.6v-9l1.7 7.6H21L19.4 6.8l-4.2-2.4"/><path d="M8.8 4.4C9 7.4 10.3 9 12 9s3-1.6 3.2-4.6A3.4 3.4 0 0 0 8.8 4.4zM10 15h4"/>',
   cardigan:'<path d="M8.5 4 4.5 6 2.8 18.6h2.5L7.2 11v9h9.6v-9l1.9 7.6h2.5L19.5 6l-4-2"/><path d="M8.5 4 12 9.5 15.5 4M12 9.5V20M13.4 12.5h.01M13.4 15.8h.01"/>',
@@ -451,6 +451,7 @@ const ICON={
   vest:'<path d="M8 3 6 5.2V20h5l1-9.5 1 9.5h5V5.2L16 3l-4 6.5z"/>',
   sneaker:'<path d="M2.8 15.6V9.8l3-.6 2.2 2.2 4-1 4.2 2.6 4.6 1.1.4 2.6v.9H2.8z"/><path d="M2.8 15.6h18.4M9 11.2l1.4 2M12 10.6l1.4 2"/>',
   boot:'<path d="M8.2 3h6v9.6l4.6 2.2V19H7.4l.8-7z"/><path d="M7.6 16.6h11.2M8.2 6h6"/>',
+  shoes:'<g transform="matrix(1.18 0 0 1.18 -1.57 -4.63)"><path vector-effect="non-scaling-stroke" d="M4.3 17.9h6c.5 0 1-.1 1.5-.2 2.1-.5 3.8-1.8 5.9-2.4l.4 5.3h1.2l.8-7 .2-.8c.1-.4 0-.8-.2-1.2l-1.6-2.6c-.5-.9-1.7-1-2.4-.3l-3.3 3.4c-1.4 1.4-3.1 2.3-5.1 2.2l-2.8-.2C3.6 14 2.6 14.9 2.6 16.2c0 .9.7 1.7 1.7 1.7z"/></g>',
   heel:'<path d="M3 16.6c3 0 5-6.2 7.2-6.2 2 0 4 4.4 7 4.4l4 1.2v1.8H8.6"/><path d="M5.2 16.6V21M3 16.6h2.2"/>',
   sandal:'<path d="M3.5 16.2c0-2 3.4-3.2 7.6-3.2s9.4 1 9.4 3.2v1H3.5z"/><path d="M8 13.2 10 9M14.4 13.2 13.2 9M9.6 9h4"/>',
   flats:'<path d="M2.8 15.4c0-2 2-3.2 5.2-3.2l3 1h5.2c3 0 5 1.2 5 3.2v1H2.8z"/><path d="M8 12.4c.6 1.4 2 2 3.4 1.6"/>',
@@ -467,7 +468,7 @@ const ICON={
   active:'<path d="M13.4 3 6 13.4h5.2L10.4 21l7.6-10.4h-5.2z"/>',
   other:'<path d="M12 7a2 2 0 1 1 2-2c0 1-2 1.5-2 3v1"/><path d="M12 9 3 16a1.2 1.2 0 0 0 .8 2.1h16.4A1.2 1.2 0 0 0 21 16z"/>'};
 const TYPE_ICON={'T-shirts':'tshirt','Tank tops':'tank','Bodysuits':'bodysuit','Shirts':'shirt','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt','Leggings':'leggings','Sweatpants':'pants',
-  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneaker','Boots':'boot','Heels':'heel','Flats':'flats','Sandals':'sandal','Loafers':'loafer',
+  'Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Sneakers':'sneaker','Boots':'boot','Shoes':'shoes','Sandals':'sandal','Loafers':'loafer',
   'Bags':'bag','Hats':'hat','Jewelry':'jewelry','Belts':'belt','Scarves':'scarf','Sunglasses':'sunglasses','Watches':'watch','Activewear':'active','Swimwear':'swim','Sleepwear':'sleep','Other':'other'};
 const GROUP_ICON={Tops:'tshirt',Bottoms:'pants','One-pieces':'dress',Outerwear:'jacket',Shoes:'sneaker',Bags:'bag',Accessories:'hat',Other:'other'};
 function typeIcon(t){
@@ -499,10 +500,7 @@ function closetResults(){
     name:(a,b)=>(a[1].name||'').localeCompare(b[1].name||'')};
   list.sort(sorters[S.sort]||sorters.new);
   if(!list.length)return `<p class="muted">Nothing matches those filters.</p>`;
-  if(S.type!=='All'||q)return `<div class="grid">${list.map(([id,i])=>itemCard(id,i,W)).join('')}</div>`;
-  const by=new Map();for(const e of list){const t=typeOf(e[1]);if(!by.has(t))by.set(t,[]);by.get(t).push(e)}
-  return [...by.entries()].sort((a,b)=>typeRank(a[0])-typeRank(b[0])||a[0].localeCompare(b[0])).map(([t,es])=>
-    `<section class="tsec"><div class="thead"><h3>${esc(t)}</h3><span class="muted">${es.length}</span></div><div class="grid">${es.map(([id,i])=>itemCard(id,i,W)).join('')}</div></section>`).join('');
+  return `<div class="grid">${list.map(([id,i])=>itemCard(id,i,W)).join('')}</div>`;
 }
 function empty(h,p){return `<div class="empty"><h2>${h}</h2><p>${p}</p></div>`}
 
@@ -1018,6 +1016,8 @@ render();
       if(it.name===`${cap(old)} ${word}`)v.name=`${cap(nn)} ${word}`;
       await idbPut('items',iid,v);S.items.set(iid,v);
     }
+    for(const[iid,it]of S.items)if(it.type==='Heels'||it.type==='Flats'){const cap=w=>w?w[0].toUpperCase()+w.slice(1):w,old=it.type.toLowerCase(),c=genericName(it.colour);
+      const v={...it,type:'Shoes',group:'Shoes',updatedAt:Date.now()};if(it.name===`${cap(c)} ${old}`)v.name=`${cap(c)} shoes`;await idbPut('items',iid,v);S.items.set(iid,v)}
     for(const[iid,it]of S.items)if(it.type==='Blouses'){const v={...it,type:'Shirts',group:'Tops',updatedAt:Date.now()};await idbPut('items',iid,v);S.items.set(iid,v)}
     if(!S.closets.has(MAIN)&&!S.deleted.has('closets/'+MAIN)){const c={name:'My Closet',createdAt:1,updatedAt:1};await idbPut('closets',MAIN,c);S.closets.set(MAIN,c)}
     for(const[id,b]of await idbAll('images'))URLS.set(id,URL.createObjectURL(b));
