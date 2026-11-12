@@ -700,8 +700,92 @@ function wireShuffle(){
   $('#shStyle')?.addEventListener('change',e=>{sh.style=e.target.value;sh.locks.clear();doShuffle();render()});
 }
 
+
+/* ---------- weather: 7-day forecast from Open-Meteo (free, no account). Location is rounded to about 1 km and kept on this device. ---------- */
+const WX={loading:false,err:''};
+const wxLoc=()=>{try{return JSON.parse(ls.get('closet.wx.loc')||'null')}catch(e){return null}};
+const wxData=()=>{try{return JSON.parse(ls.get('closet.wx.data')||'null')}catch(e){return null}};
+const WX_ICON={
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+  part:'<circle cx="9" cy="9" r="3.2"/><path d="M9 3.2v1.3M3.2 9h1.3M4.9 4.9l.9.9M13.1 4.9l-.9.9"/><path d="M9.5 19h8a3.3 3.3 0 0 0 .3-6.6 4.6 4.6 0 0 0-8.8 1.4A2.6 2.6 0 0 0 9.5 19z"/>',
+  cloud:'<path d="M7.5 18.5h9.5a4 4 0 0 0 .5-7.97A5.8 5.8 0 0 0 6.4 9.5a4.5 4.5 0 0 0 1.1 9z"/>',
+  fog:'<path d="M7.5 13.5h9.5a3.6 3.6 0 0 0 .3-7.2A5.3 5.3 0 0 0 7 5.6a4 4 0 0 0 .5 7.9zM5 17h14M7 20.5h10"/>',
+  rain:'<path d="M7.5 14.5h9.5a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.9 6.2a4.2 4.2 0 0 0 .6 8.3zM8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>',
+  snow:'<path d="M7.5 14.5h9.5a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.9 6.2a4.2 4.2 0 0 0 .6 8.3z"/><path d="M8 18.2v.1M12 19.7v.1M16 18.2v.1M10 21.2v.1M14 21.2v.1"/>',
+  storm:'<path d="M7.5 14.5h9.5a3.8 3.8 0 0 0 .4-7.6A5.5 5.5 0 0 0 6.9 6.2a4.2 4.2 0 0 0 .6 8.3zM12.8 15.5l-2 3.2h2.6l-1.6 3"/>'};
+function wxKind(c){if(c===0)return['sun','Clear'];if(c<=2)return['part','Partly cloudy'];if(c===3)return['cloud','Cloudy'];if(c===45||c===48)return['fog','Fog'];
+  if(c>=95)return['storm','Thunderstorms'];if((c>=71&&c<=77)||c===85||c===86)return['snow','Snow'];if(c>=51&&c<=67)return[c<60?'rain':'rain',c<60?'Drizzle':'Rain'];if(c>=80&&c<=82)return['rain','Showers'];return['cloud','Cloudy']}
+const wxSvg=k=>`<svg class="wxi ${k}" viewBox="0 0 24 24" aria-hidden="true">${WX_ICON[k]||WX_ICON.cloud}</svg>`;
+// forecast for one day (YYYY-MM-DD) or null
+function wxDay(key){const d=wxData();if(!d||!d.days)return null;return d.days.find(x=>x.date===key)||null}
+function wxStale(){const d=wxData(),l=wxLoc();if(!l)return false;if(!d||d.lat!==l.lat||d.lon!==l.lon)return true;return Date.now()-d.at>3600000||!d.days.some(x=>x.date===today())}
+async function loadWeather(force){
+  const l=wxLoc();if(!l||WX.loading||(!force&&!wxStale()))return;
+  WX.loading=true;WX.err='';
+  try{
+    const u=`https://api.open-meteo.com/v1/forecast?latitude=${l.lat}&longitude=${l.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
+    const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('weather '+r.status);const j=await r.json(),D=j.daily;
+    const days=D.time.map((date,i)=>({date,code:D.weather_code[i],hi:Math.round(D.temperature_2m_max[i]),lo:Math.round(D.temperature_2m_min[i]),pop:D.precipitation_probability_max?.[i]??null}));
+    ls.set('closet.wx.data',JSON.stringify({at:Date.now(),lat:l.lat,lon:l.lon,days}));
+  }catch(e){console.warn(e);WX.err=navigator.onLine?'Couldn’t get the forecast right now.':'Offline. Showing the last forecast.'}
+  finally{WX.loading=false;if(S.view==='calendar')render()}
+}
+function wxUseHere(){
+  if(!navigator.geolocation){toast('Location isn’t available. Search for your city instead.');return}
+  WX.loading=true;render();
+  navigator.geolocation.getCurrentPosition(p=>{
+    WX.loading=false;WX.setup=false;ls.set('closet.wx.loc',JSON.stringify({lat:Math.round(p.coords.latitude*100)/100,lon:Math.round(p.coords.longitude*100)/100,name:'Your location',src:'user'}));loadWeather(true);
+  },()=>{WX.loading=false;WX.err='Location wasn’t allowed. Search for your city instead.';render()},{maximumAge:3600000,timeout:15000});
+}
+async function geocode(q){
+  for(const name of [q,q.split(',')[0]].map(x=>x.trim()).filter((x,i,a)=>x&&a.indexOf(x)===i)){
+    const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`);const c=(await r.json()).results?.[0];
+    if(c)return{lat:Math.round(c.latitude*100)/100,lon:Math.round(c.longitude*100)/100,name:[c.name,c.admin1].filter(Boolean).join(', ')};
+  }
+  return null;
+}
+async function wxCity(q){
+  q=(q||'').trim();if(!q)return;
+  try{const c=await geocode(q);if(!c){toast('Couldn’t find that place. Try a nearby city.');return}
+    ls.set('closet.wx.loc',JSON.stringify({...c,src:'user'}));WX.err='';loadWeather(true);
+  }catch(e){toast('Couldn’t search right now. Check your connection.')}
+}
+// No location chosen yet: use the location on the owner's GitHub profile, or Toronto if there isn't one.
+const TORONTO={lat:43.65,lon:-79.38,name:'Toronto, Ontario'};
+async function wxAuto(){
+  const l=wxLoc();if(WX.auto||(l&&!(l.src==='default'&&GH.cfg()&&!WX.ghTried)))return;
+  WX.auto=true;let loc=null;
+  try{
+    const c=GH.cfg();
+    if(c){WX.ghTried=true;const r=await fetch('https://api.github.com/user',{headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github+json'},cache:'no-store'});
+      if(r.ok){const where=((await r.json()).location||'').trim();if(where){const g=await geocode(where);if(g)loc={...g,src:'github'}}}}
+  }catch(e){console.warn('github location',e)}
+  if(!loc&&!l)loc={...TORONTO,src:'default'};
+  WX.auto=false;
+  if(loc){ls.set('closet.wx.loc',JSON.stringify(loc));loadWeather(true)}
+}
+function weatherStrip(){
+  const l=wxLoc();
+  if(!l&&!WX.setup)return `<div class="wx"><p class="muted" style="margin:0;font-size:13px">Getting the forecast…</p></div>`;
+  if(WX.setup)return `<div class="wx setup"><div class="wxhead"><b>Weather for the week</b><button class="linkbtn" type="button" data-wx="cancel">Cancel</button></div>
+    <p class="muted" style="margin:0;font-size:13px">Pick where the forecast is for. Your location is rounded to about 1 km, kept on this device, and only sent to Open-Meteo, a free weather service.</p>
+    ${WX.err?`<p class="muted" style="margin:0;font-size:13px">${esc(WX.err)}</p>`:''}
+    <div class="wxset"><button class="btn sm primary" type="button" data-wx="here" ${WX.loading?'disabled':''}>${WX.loading?'Finding you…':'Use my location'}</button>
+    <form class="wxcity" data-wxform><input id="wxQ" placeholder="Or type a city" autocomplete="off" aria-label="City"><button class="btn sm" type="submit">Go</button></form></div>
+    </div>`;
+  const d=wxData(),t=today();
+  const days=d?.days?.filter(x=>x.date>=t).slice(0,7)||[];
+  return `<div class="wx"><div class="wxhead"><b>${esc(l.name||'Weather')}</b><button class="linkbtn" type="button" data-wx="change">Change</button></div>
+    ${days.length?`<div class="wxdays">${days.map(x=>{const[k,lab]=wxKind(x.code),dt=parse(x.date);
+      return `<button type="button" class="wxd${x.date===t?' today':''}" data-day="${x.date}" aria-label="${fmtDate(x.date)}: ${lab}, high ${x.hi}°, low ${x.lo}°${x.pop!=null?', '+x.pop+'% chance of rain':''}">
+        <small>${x.date===t?'Today':dt.toLocaleDateString('en-CA',{weekday:'short'})}</small>${wxSvg(k)}<b>${x.hi}°</b><small class="lo">${x.lo}°</small>${x.pop>=30?`<small class="pop">${x.pop}%</small>`:''}</button>`}).join('')}</div>`
+      :`<p class="muted" style="margin:0;font-size:13px">${WX.loading?'Getting the forecast…':esc(WX.err||'No forecast yet.')}</p>`}
+    ${days.length&&WX.err?`<p class="muted" style="margin:0;font-size:12px">${esc(WX.err)}</p>`:''}</div>`;
+}
 function calendarView(){
+  if(!wxLoc()||(wxLoc().src==='default'&&GH.cfg()&&!WX.ghTried))setTimeout(wxAuto,0);else if(wxStale())setTimeout(()=>loadWeather(),0);
   const m=S.month,y=m.getFullYear(),mo=m.getMonth(),t=today();
+  const hideWx=false;
   const first=new Date(y,mo,1),start=new Date(y,mo,1-first.getDay());
   let cells='';
   for(let k=0;k<42;k++){
@@ -710,17 +794,17 @@ function calendarView(){
     const pic=p&&(p.itemIds||[]).map(id=>S.items.get(id)).sort((a,b)=>(a&&groupOf(a)==='Tops'?-1:0)-(b&&groupOf(b)==='Tops'?-1:0)).find(i=>hasImg(i));
     const has=p&&(p.itemIds||[]).length;
     cells+=`<button type="button" class="day${d.getMonth()!==mo?' out':''}${key===t?' today':''}${key>t?' future':''}${has?' has':''}${pic?' img':''}${pic?.cutout?' cut':''}" data-day="${key}" aria-label="${fmtDate(key)}${has?', '+esc(p.outfitId&&S.outfits.get(p.outfitId)?.name||'outfit planned'):''}">
-      <span class="n">${d.getDate()}</span>${pic?img(pic.imageId):has?'<span class="dot"></span>':''}</button>`;
+      <span class="n">${d.getDate()}</span>${(()=>{const w=key>=t&&wxDay(key);return w?`<span class="wt">${w.hi}°</span>`:''})()}${pic?img(pic.imageId):has?'<span class="dot"></span>':''}</button>`;
   }
   const up=[...S.plans.entries()].filter(([d,p])=>d>t&&(p.itemIds||[]).length).sort().slice(0,7);
   const recent=[...S.plans.entries()].filter(([d,p])=>d<=t&&(p.itemIds||[]).length).sort().reverse().slice(0,5);
   const row=([d,p])=>{const o=p.outfitId&&S.outfits.get(p.outfitId);const it=(p.itemIds||[]).map(i=>S.items.get(i)).filter(Boolean);const f=it.find(hasImg)||it[0];
     return `<button class="li" type="button" data-day="${d}"><span class="mini ${f?.cutout&&hasImg(f)?'cut':''}">${thumb(f)}</span><span class="tx"><b>${esc(o?.name||it.map(i=>i.name).join(', ')||'Outfit')}</b><small>${fmtDate(d)} · ${ago(d)}</small></span></button>`};
-  return `<div class="calhead"><button class="iconbtn" type="button" data-mon="-1" aria-label="Previous month">‹</button>
+  return `${hideWx?'':weatherStrip()}<div class="calhead"><button class="iconbtn" type="button" data-mon="-1" aria-label="Previous month">‹</button>
     <h2>${m.toLocaleDateString('en-CA',{month:'long',year:'numeric'})}</h2>
     <button class="iconbtn" type="button" data-mon="1" aria-label="Next month">›</button></div>
     <div class="cal">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="dow">${d}</div>`).join('')}${cells}</div>
-    <div class="legend">Tap a day to plan or log an outfit. Days up to today count as worn; dashed days are planned.</div>
+    <div class="legend">Tap a day to plan or log an outfit. Days up to today count as worn; dashed days are planned.${hideWx?' <button class="linkbtn" type="button" data-wx="show">Show the weather</button>':''}</div>
     <h3>Coming up</h3>${up.length?`<div class="list">${up.map(row).join('')}</div>`:'<p class="muted" style="margin:0">Nothing planned yet.</p>'}
     <h3>Recently worn</h3>${recent.length?`<div class="list">${recent.map(row).join('')}</div>`:'<p class="muted" style="margin:0">No outfits logged yet.</p>'}`;
 }
@@ -766,12 +850,14 @@ function statsView(){
 }
 
 /* ---------- main view events ---------- */
+document.addEventListener('submit',e=>{const f=e.target.closest('[data-wxform]');if(!f)return;e.preventDefault();const q=f.querySelector('#wxQ').value;WX.setup=false;wxCity(q)});
 document.addEventListener('click',e=>{
   const tab=e.target.closest('[data-tab]');if(tab){S.view=tab.dataset.tab;ls.set('closet.view',S.view);render();scrollTo(0,0);return}
   if(e.target.closest('#sheetRoot'))return;
   if(e.target.closest('#syncBtn,[data-open-sync]')){syncSheet();return}
   if(e.target.closest('#manageClosets')){closetsSheet();return}
   if(e.target.closest('#bulkBtn')){bulkSheet();return}
+  const wx=e.target.closest('[data-wx]');if(wx){const a=wx.dataset.wx;if(a==='here')wxUseHere();else if(a==='change'){WX.setup=true;WX.err='';render()}else if(a==='cancel'){WX.setup=false;WX.err='';render()}else if(a==='hide'){ls.set('closet.wx.off','1');render()}else if(a==='show'){ls.set('closet.wx.off',null);WX.setup=true;render()}return}
   const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';ls.set('closet.current',S.closet);render();return}
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
@@ -1097,6 +1183,7 @@ function daySheet(date){
   const past=date<=today();
   const outs=[...S.outfits.entries()];
   const sh=openSheet(`${head(esc(fmtDate(date)))}
+    ${(()=>{const w=date>=today()&&wxDay(date);if(!w)return '';const[k,lab]=wxKind(w.code);return `<div class="wxline">${wxSvg(k)}<span><b>${lab}</b>, high ${w.hi}° / low ${w.lo}°${w.pop!=null&&w.pop>=10?` · ${w.pop}% chance of rain`:''}</span></div>`})()}
     <p class="muted" style="margin:0">${past?'Log what you wore. It counts toward “last worn”.':'Plan what you’ll wear.'}</p>
     ${outs.length?`<div class="lbl">Saved outfits</div><div class="hscroll">${outs.map(([oid,o])=>`<button type="button" class="oc" data-oc="${oid}" aria-pressed="${outfitId===oid}">${boardHTML(o.itemIds||[],o.layout)}<small>${esc(o.name)}</small></button>`).join('')}</div>`:''}
     <div class="lbl" id="selLbl"></div>
