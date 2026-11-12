@@ -1,5 +1,7 @@
 # My Closet
 
+**Open the app: https://alagilly.github.io/my-closet/**
+
 A virtual closet you can add to your iPhone home screen. Add clothes with front and back photos, price, type, colour and style. Keep several closets, build outfits on a board, shuffle outfit ideas, plan outfits on a calendar, and see when you last wore something.
 
 ## Your data stays yours
