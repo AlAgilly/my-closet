@@ -246,11 +246,11 @@ nav.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
 .cats::-webkit-scrollbar{display:none}
 .cat{all:unset;cursor:pointer;flex:none;width:72px;display:flex;flex-direction:column;align-items:center;gap:7px;scroll-snap-align:start}
 .cic{position:relative;width:64px;height:64px;border-radius:50%;background:var(--surface);display:grid;place-items:center;transition:background .15s,transform .15s;box-shadow:0 1px 3px rgb(0 0 0/.06)}
-.cic svg{width:30px;height:30px;fill:none;stroke:var(--ink);stroke-width:1;stroke-linecap:round;stroke-linejoin:round}
+.cic svg{width:30px;height:30px;fill:none;color:var(--ink);stroke:var(--ink);stroke-width:1;stroke-linecap:round;stroke-linejoin:round}
 .cn{position:absolute;top:-2px;right:-2px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:11px;font-weight:600;display:grid;place-items:center;font-variant-numeric:tabular-nums;color:var(--muted)}
 .cl{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cat[aria-pressed="true"] .cic{background:var(--ink)}
-.cat[aria-pressed="true"] .cic svg{stroke:var(--bg)}
+.cat[aria-pressed="true"] .cic svg{stroke:var(--bg);color:var(--bg)}
 .cat[aria-pressed="true"] .cn{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .cat[aria-pressed="true"] .cl{color:var(--ink);font-weight:600}
 .cat:active .cic{transform:scale(.95)}

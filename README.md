@@ -18,6 +18,12 @@ A virtual closet you can add to your iPhone home screen. Add clothes with front 
 
 "Remove background" runs on your device using the open RMBG-1.4 model (downloaded once, about 45 MB). You can also touch and hold a piece of clothing in the iPhone Photos app, tap Share → Save Image, and choose that cut-out picture.
 
+## Credits
+
+- Clothing type icons: [IconPark](https://github.com/bytedance/IconPark) by ByteDance (Apache License 2.0) and [Phosphor Icons](https://github.com/phosphor-icons/core) (MIT License), with line weights adjusted. The tank top icon is the owner's own drawing.
+- Background removal: [RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4) by BRIA AI (free for non-commercial use), run with [Transformers.js](https://github.com/huggingface/transformers.js).
+- Item recognition: [CLIP](https://huggingface.co/Xenova/clip-vit-base-patch32) (OpenAI, MIT License) via Transformers.js.
+
 ## Files
 
 - `index.html`: page and styles
