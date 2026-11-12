@@ -911,7 +911,7 @@ function itemSheet(id){
     <div class="field"><label for="fName">Name</label><input id="fName" value="${esc(it?.name)}" placeholder="Black straight-leg jeans" autocomplete="off"></div>
     <div class="two">
       <div class="field"><label for="fType">Type</label>${typeSelect(it?.type)}</div>
-      <div class="field"><label for="fPrice">Price ($)</label><input id="fPrice" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(it?.price)}" placeholder="60"></div>
+      <div class="field"><span class="lblrow"><label for="fPrice">Price ($)</label><button class="taxbtn" type="button" id="addTax" aria-label="Add 13% tax to the price">+tax</button></span><input id="fPrice" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(it?.price)}" placeholder="60"></div>
     </div>
     <div class="two" id="newTypeRow" hidden>
       <div class="field"><label for="fNewType">New type</label><input id="fNewType" placeholder="Polo shirts" autocomplete="off"></div>
@@ -965,6 +965,8 @@ function itemSheet(id){
   });
   const tSel=sh.querySelector('#fType');tSel.addEventListener('change',()=>{sh.querySelector('#newTypeRow').hidden=tSel.value!=='__new'});
   // colour state: main (plain name + exact shade) and a set of secondary names
+  sh.querySelector('#addTax').addEventListener('click',()=>{const f=sh.querySelector('#fPrice'),v=Number(f.value);
+    if(!f.value||!(v>0)){toast('Enter a price first.');return}const nv=Math.round(v*1.13*100)/100;f.value=nv.toFixed(2);toast(`Added 13% tax: $${v.toFixed(2)} → $${nv.toFixed(2)}`)});
   const COL={name:genericName(it?.colour)||'',hex:it?.colourHex||null,named:!!it?.colourNamed,sec:new Set(it?.colours2||[])};
   function paintCol(){
     const sw=COL.hex||GEN_HEX[COL.name]||okColour(COL.name);
