@@ -68,7 +68,7 @@ select,.field input,.field textarea{width:100%;padding:10px 12px;border-radius:1
 .card{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-width:0;position:relative}
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:var(--r)}
 .ph{aspect-ratio:3/4;max-width:100%;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);overflow:hidden;display:grid;place-items:center;position:relative}
-.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;box-sizing:border-box}
 .ph .ini{font-family:var(--display);font-size:34px;color:var(--muted)}
 .card .nm{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card .meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
@@ -99,7 +99,7 @@ select,.field input,.field textarea{width:100%;padding:10px 12px;border-radius:1
 .day:focus-visible{outline:2px solid var(--accent)}
 .day.out{opacity:.35}
 .day .n{position:absolute;top:3px;left:5px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;z-index:1;text-shadow:0 0 3px var(--surface)}
-.day img{width:100%;height:100%;object-fit:cover;display:block}
+.day img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;box-sizing:border-box}
 .day.has:not(.img){background:var(--accent-soft)}
 .day.future.has{border-style:dashed;border-color:var(--accent)}
 .day.future.has img{opacity:.8}
