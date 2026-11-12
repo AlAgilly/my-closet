@@ -1,5 +1,5 @@
 // Offline support: network first, cached copy when offline. Only caches this site and Google Fonts — never GitHub API calls.
-const CACHE = 'closet-v18';
+const CACHE = 'closet-v19';
 const CORE = ['./', './index.html', './app.js', './ml-worker.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png',
   './icons/activewear.png', './icons/bags.png', './icons/belts.png', './icons/blazers.png', './icons/bodysuits.png', './icons/cardigans.png', './icons/coats.png', './icons/dresses.png', './icons/footwear.png', './icons/heels.png', './icons/glasses.png', './icons/hats.png', './icons/jackets.png', './icons/jeans.png', './icons/jewelry.png', './icons/jumpsuits.png', './icons/overalls.png', './icons/pants.png', './icons/shorts.png', './icons/skirts.png', './icons/sweaters.png', './icons/hoodies.png', './icons/tops.png', './icons/tanktops.png', './icons/vests.png', './icons/other.png'];
 

@@ -273,11 +273,11 @@ nav.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
 .actions{display:flex;flex-direction:column;gap:8px}
 .actions .btn{width:100%}
 /* picture icons (PNG): black lines, flipped to white on dark circles */
-.cic svg image{filter:none}
-.cat[aria-pressed="true"] .cic svg image{filter:invert(1)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cic svg image{filter:invert(1)}:root:not([data-theme="light"]) .cat[aria-pressed="true"] .cic svg image{filter:none}}
-:root[data-theme="dark"] .cic svg image{filter:invert(1)}
-:root[data-theme="dark"] .cat[aria-pressed="true"] .cic svg image{filter:none}
+.cic .ico{width:30px;height:30px;display:block;filter:none;-webkit-user-select:none;user-select:none;pointer-events:none}
+.cat[aria-pressed="true"] .cic .ico{filter:invert(1)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cic .ico{filter:invert(1)}:root:not([data-theme="light"]) .cat[aria-pressed="true"] .cic .ico{filter:none}}
+:root[data-theme="dark"] .cic .ico{filter:invert(1)}
+:root[data-theme="dark"] .cat[aria-pressed="true"] .cic .ico{filter:none}
 .credits{margin:12px 0 0;font-size:12px;color:var(--muted)}
 .credits a{color:var(--muted)}
 .plabel{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:center}

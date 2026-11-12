@@ -558,33 +558,33 @@ function closetView(){
 /* Type picker icons: Flaticon icons (free with attribution; authors credited in the Stats tab and README),
    redrawn at one uniform line width. The 'All' icon is drawn for this app. */
 const ICON={
-  all:'<rect stroke-width=".85" x="4" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/>',
-  activewear:'<image href="icons/activewear.png" x="0" y="0" width="24" height="24"/>',
-  bags:'<image href="icons/bags.png" x="0" y="0" width="24" height="24"/>',
-  belts:'<image href="icons/belts.png" x="0" y="0" width="24" height="24"/>',
-  blazers:'<image href="icons/blazers.png" x="0" y="0" width="24" height="24"/>',
-  bodysuits:'<image href="icons/bodysuits.png" x="0" y="0" width="24" height="24"/>',
-  cardigans:'<image href="icons/cardigans.png" x="0" y="0" width="24" height="24"/>',
-  coats:'<image href="icons/coats.png" x="0" y="0" width="24" height="24"/>',
-  dresses:'<image href="icons/dresses.png" x="0" y="0" width="24" height="24"/>',
-  footwear:'<image href="icons/footwear.png" x="0" y="0" width="24" height="24"/>',
-  heels:'<image href="icons/heels.png" x="0" y="0" width="24" height="24"/>',
-  glasses:'<image href="icons/glasses.png" x="0" y="0" width="24" height="24"/>',
-  hats:'<image href="icons/hats.png" x="0" y="0" width="24" height="24"/>',
-  jackets:'<image href="icons/jackets.png" x="0" y="0" width="24" height="24"/>',
-  jeans:'<image href="icons/jeans.png" x="0" y="0" width="24" height="24"/>',
-  jewelry:'<image href="icons/jewelry.png" x="0" y="0" width="24" height="24"/>',
-  jumpsuits:'<image href="icons/jumpsuits.png" x="0" y="0" width="24" height="24"/>',
-  overalls:'<image href="icons/overalls.png" x="0" y="0" width="24" height="24"/>',
-  pants:'<image href="icons/pants.png" x="0" y="0" width="24" height="24"/>',
-  shorts:'<image href="icons/shorts.png" x="0" y="0" width="24" height="24"/>',
-  skirts:'<image href="icons/skirts.png" x="0" y="0" width="24" height="24"/>',
-  sweaters:'<image href="icons/sweaters.png" x="0" y="0" width="24" height="24"/>',
-  hoodies:'<image href="icons/hoodies.png" x="0" y="0" width="24" height="24"/>',
-  tops:'<image href="icons/tops.png" x="0" y="0" width="24" height="24"/>',
-  tanktops:'<image href="icons/tanktops.png" x="0" y="0" width="24" height="24"/>',
-  vests:'<image href="icons/vests.png" x="0" y="0" width="24" height="24"/>',
-  other:'<image href="icons/other.png" x="0" y="0" width="24" height="24"/>'};
+  all:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect stroke-width=".85" x="4" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/></svg>',
+  activewear:'<img class="ico" src="icons/activewear.png" alt="" draggable="false">',
+  bags:'<img class="ico" src="icons/bags.png" alt="" draggable="false">',
+  belts:'<img class="ico" src="icons/belts.png" alt="" draggable="false">',
+  blazers:'<img class="ico" src="icons/blazers.png" alt="" draggable="false">',
+  bodysuits:'<img class="ico" src="icons/bodysuits.png" alt="" draggable="false">',
+  cardigans:'<img class="ico" src="icons/cardigans.png" alt="" draggable="false">',
+  coats:'<img class="ico" src="icons/coats.png" alt="" draggable="false">',
+  dresses:'<img class="ico" src="icons/dresses.png" alt="" draggable="false">',
+  footwear:'<img class="ico" src="icons/footwear.png" alt="" draggable="false">',
+  heels:'<img class="ico" src="icons/heels.png" alt="" draggable="false">',
+  glasses:'<img class="ico" src="icons/glasses.png" alt="" draggable="false">',
+  hats:'<img class="ico" src="icons/hats.png" alt="" draggable="false">',
+  jackets:'<img class="ico" src="icons/jackets.png" alt="" draggable="false">',
+  jeans:'<img class="ico" src="icons/jeans.png" alt="" draggable="false">',
+  jewelry:'<img class="ico" src="icons/jewelry.png" alt="" draggable="false">',
+  jumpsuits:'<img class="ico" src="icons/jumpsuits.png" alt="" draggable="false">',
+  overalls:'<img class="ico" src="icons/overalls.png" alt="" draggable="false">',
+  pants:'<img class="ico" src="icons/pants.png" alt="" draggable="false">',
+  shorts:'<img class="ico" src="icons/shorts.png" alt="" draggable="false">',
+  skirts:'<img class="ico" src="icons/skirts.png" alt="" draggable="false">',
+  sweaters:'<img class="ico" src="icons/sweaters.png" alt="" draggable="false">',
+  hoodies:'<img class="ico" src="icons/hoodies.png" alt="" draggable="false">',
+  tops:'<img class="ico" src="icons/tops.png" alt="" draggable="false">',
+  tanktops:'<img class="ico" src="icons/tanktops.png" alt="" draggable="false">',
+  vests:'<img class="ico" src="icons/vests.png" alt="" draggable="false">',
+  other:'<img class="ico" src="icons/other.png" alt="" draggable="false">'};
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Tops':'tops','Tank tops':'tanktops','Vests':'vests','Other':'other'};
@@ -595,7 +595,7 @@ function typeIcon(t){
   const g=[...S.items.values()].find(i=>i.type===t)?.group;return ICON[GROUP_ICON[g]||'other'];
 }
 function catBtn(val,label,count){
-  return `<button class="cat" type="button" data-type="${esc(val)}" aria-pressed="${S.type===val}" aria-label="${esc(label)}, ${count}"><span class="cic"><svg viewBox="0 0 24 24" aria-hidden="true">${typeIcon(val)}</svg><span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
+  return `<button class="cat" type="button" data-type="${esc(val)}" aria-pressed="${S.type===val}" aria-label="${esc(label)}, ${count}"><span class="cic">${typeIcon(val)}<span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
 }
 
 function itemCard(id,i,W){
@@ -762,7 +762,7 @@ document.addEventListener('click',e=>{
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
   const so=e.target.closest('[data-shopt]');if(so){const k=so.dataset.shopt;S.shuf[k]=!S.shuf[k];if(!S.shuf[k]){delete S.shuf.slots[k];S.shuf.locks.delete(k)}doShuffle();render();return}
   const lk=e.target.closest('[data-lock]');if(lk){const k=lk.dataset.lock,L=S.shuf.locks;L.has(k)?L.delete(k):L.add(k);render();return}
-  const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;render();return}
+  const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;const res=$('#results');if(res&&S.view==='closet'){document.querySelectorAll('.cats [data-type]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.type===S.type));res.innerHTML=closetResults()}else render();return}
   const it=e.target.closest('[data-item]');if(it){itemSheet(it.dataset.item);return}
   const of=e.target.closest('[data-outfit]');if(of){outfitSheet(of.dataset.outfit);return}
   const dy=e.target.closest('[data-day]');if(dy){daySheet(dy.dataset.day);return}
