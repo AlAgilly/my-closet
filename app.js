@@ -203,21 +203,18 @@ async function repairCutout(blob){
   g.putImageData(img,0,0);
   return{blob:await new Promise(r=>c.toBlob(r,'image/png')),fixed:todo.length};
 }
-// The models run in a background worker (ml-worker.js) so scrolling and drawing stay smooth while photos are processed.
+// The models live in ml.js and run in the page (a background worker ran out of memory on iPhone).
 const ML_SAY={'rmbg-download':'Downloading the cut-out tool. This happens once and is about 45 MB, so Wi-Fi helps…','rmbg-run':'Cutting out the background…',
   'clip-download':'Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…','clip-run':'Recognizing the item…'};
-let MLW=null,mlSeq=0;const mlJobs=new Map();
-function ml(op,args,status){
-  if(!MLW){
-    MLW=new Worker('ml-worker.js',{type:'module'});
-    MLW.onmessage=e=>{const{id,status:st,ok,result,error}=e.data,j=mlJobs.get(id);if(!j)return;
-      if(st){j.status&&j.status(ML_SAY[st]||st);return}
-      mlJobs.delete(id);ok?j.res(result):j.rej(new Error(error))};
-    MLW.onerror=e=>{console.error('ml worker',e);for(const j of mlJobs.values())j.rej(new Error('worker failed'));mlJobs.clear();MLW=null};
-  }
-  return new Promise((res,rej)=>{const id=++mlSeq;mlJobs.set(id,{res,rej,status});MLW.postMessage({id,op,args})});
+let MLM=null;
+async function ml(op,args,status){
+  if(!MLM)MLM=import('./ml.js');
+  const m=await MLM;
+  return m.run(op,args,st=>status&&status(ML_SAY[st]||st));
 }
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
+// let the screen draw (status text, thumbnails, scrolled rows) before the next heavy step
+const paintPause=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,60)));
 async function removeBg(blob,status){
   const{mask,w,h}=await ml('rmbg',{blob},status);
   const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
@@ -943,17 +940,18 @@ function bulkSheet(){
     sh.querySelector('#bPick').hidden=true;autoEl.disabled=true;
     const rows=files.map((f,i)=>{const r=document.createElement('div');r.className='brow';r.innerHTML=`<span class="mini"></span><span class="tx"><b>Photo ${i+1}</b><small>Waiting…</small></span>`;list.append(r);return r});
     for(let i=0;i<files.length;i++){
-      const row=rows[i],st=t=>{row.querySelector('small').textContent=t};
+      const row=rows[i],st=t=>{const sm=row.querySelector('small');if(sm)sm.textContent=t};
       msg.textContent=`Working on ${i+1} of ${files.length}. Keep the app open until it finishes.`;
       let r;try{st('Preparing…');r=await shrink(files[i])}catch(err){st('Skipped: not a supported photo');continue}
       const pv=URL.createObjectURL(r.blob);row.querySelector('.mini').innerHTML=`<img src="${pv}" alt="">`;
-      if(cut&&!r.cutout){st('Removing background…');try{r={blob:await removeBg(r.blob,m=>msg.textContent=m),cutout:true}}catch(err){console.warn(err)}}
+      await paintPause();
+      if(cut&&!r.cutout){st('Removing background…');await paintPause();try{r={blob:await removeBg(r.blob,m=>msg.textContent=m),cutout:true}}catch(err){console.warn(err)}}
       let g={name:'New piece',type:'Other',group:'Other',colour:'',colourHex:null,colours2:[]};
-      if(auto){st('Recognizing…');try{g=await autoDetect(r.blob,r.cutout,m=>msg.textContent=m)}catch(err){console.warn(err)}}
+      if(auto){st('Recognizing…');await paintPause();try{g=await autoDetect(r.blob,r.cutout,m=>msg.textContent=m)}catch(err){console.warn(err)}}
       try{
         const imageId=await addImage(r.blob),iid=newId();
         await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now()});
-        created.push(iid);URL.revokeObjectURL(pv);
+        created.push(iid);URL.revokeObjectURL(pv);await paintPause();
         row.innerHTML=`<span class="mini ${r.cutout?'cut':''}">${img(imageId)}</span><span class="tx"><input data-bname="${iid}" value="${esc(g.name)}" aria-label="Name"><select data-btype="${iid}" aria-label="Type">${typeOptions(g.type)}</select></span><input class="bprice" data-bprice="${iid}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$" aria-label="Price">`;
       }catch(err){console.error(err);st(err?.name==='QuotaExceededError'?'Skipped: this device is out of space':'Skipped: couldn’t save')}
     }

@@ -1,5 +1,5 @@
-// Runs the on-device models (background removal and item recognition) off the main thread,
-// so the app keeps scrolling and drawing smoothly while photos are processed.
+// On-device models (background removal and item recognition). They run in the page itself:
+// in a background worker, iPhone Safari ran out of memory for them and closed the app.
 let T = null, RB = null, CLIP = null, queue = Promise.resolve();
 async function loadT() {
   if (!T) { T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2/dist/transformers.min.js'); T.env.allowLocalModels = false; }
@@ -51,12 +51,9 @@ const ops = {
     return { result: { te, dim: text_embeds.dims[1] }, transfer: [te.buffer] };
   },
 };
-self.onmessage = e => {
-  const { id, op, args } = e.data;
-  const say = s => self.postMessage({ id, status: s });
-  // one job at a time: the models share a single CPU thread
-  queue = queue.then(async () => {
-    try { const out = await ops[op](args || {}, say); self.postMessage({ id, ok: true, result: out?.result ?? out }, out?.transfer || []); }
-    catch (err) { self.postMessage({ id, ok: false, error: String(err?.message || err) }); }
-  });
-};
+// one job at a time: the models share a single CPU thread
+export function run(op, args, say) {
+  const job = queue.then(() => ops[op](args || {}, say || (() => {}))).then(out => out?.result ?? out);
+  queue = job.catch(() => {});
+  return job;
+}
