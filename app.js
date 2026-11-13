@@ -38,9 +38,9 @@ function rgbToName(r,g,b){
 const hexToName=h=>rgbToName(...hexToRgb(h));
 const swatchOf=it=>it?.colourHex||GEN_HEX[genericName(it?.colour)]||okColour(it?.colour);
 const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boolean);
-const COLS=['closets','items','outfits','plans'];
+const COLS=['closets','items','outfits','plans','looks'];
 const MAIN='main';
-const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
+const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
   shuf:{closet:'all',style:'',outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
@@ -68,6 +68,7 @@ const inCloset=(it,c)=>c==='all'||closetOf(it)===c;
 const hasImg=it=>it?.imageId&&URLS.has(it.imageId);
 const imageIdsOf=it=>[it?.imageId,it?.backImageId].filter(Boolean);
 const wantedImages=items=>new Set([...items].flatMap(imageIdsOf));
+const lookImages=looks=>new Set([...looks].map(l=>l?.imageId).filter(Boolean));
 const img=id=>id&&URLS.has(id)?`<img src="${URLS.get(id)}" alt="" loading="lazy" draggable="false" onerror="this.remove()">`:'';
 function thumb(it){
   if(hasImg(it))return img(it.imageId);
@@ -80,8 +81,8 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ---------- IndexedDB ---------- */
 let IDB=null;
 function idbOpen(){return new Promise((res,rej)=>{
-  const r=indexedDB.open('my-closet',2);
-  r.onupgradeneeded=()=>{for(const s of[...COLS,'images','meta'])if(!r.result.objectStoreNames.contains(s))r.result.createObjectStore(s)};
+  const r=indexedDB.open('my-closet',3);
+  r.onupgradeneeded=()=>{for(const s of[...COLS,'images','meta','emb'])if(!r.result.objectStoreNames.contains(s))r.result.createObjectStore(s)};
   r.onblocked=()=>{S.notice='The app is open in another tab with an older version. Close that tab to finish updating.';render()};
   r.onsuccess=()=>{const db=r.result;db.onversionchange=()=>{db.close();S.notice='A newer version of the app was opened. Reload this page to keep using it.';render()};if(S.notice.startsWith('The app is open'))S.notice='';res(db)};
   r.onerror=()=>rej(r.error)})}
@@ -214,7 +215,7 @@ async function ml(op,args,status){
 }
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
 // let the screen draw (status text, thumbnails, scrolled rows) before the next heavy step
-const paintPause=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,60)));
+const paintPause=()=>new Promise(r=>{let done=false;const go=()=>{if(!done){done=true;setTimeout(r,60)}};requestAnimationFrame(go);setTimeout(go,150)});
 async function removeBg(blob,status){
   const{mask,w,h}=await ml('rmbg',{blob},status);
   const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
@@ -360,8 +361,8 @@ const GH={
 const b64FromBytes=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
 const b64ToBytes=b=>Uint8Array.from(atob(b.replace(/\s/g,'')),c=>c.charCodeAt(0));
 const stable=v=>Array.isArray(v)?'['+v.map(stable).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}':JSON.stringify(v??null);
-const pick=o=>({closets:o?.closets||{},items:o?.items||{},outfits:o?.outfits||{},plans:o?.plans||{},deleted:o?.deleted||{}});
-const localDoc=()=>({closets:Object.fromEntries(S.closets),items:Object.fromEntries(S.items),outfits:Object.fromEntries(S.outfits),plans:Object.fromEntries(S.plans),deleted:Object.fromEntries(S.deleted)});
+const pick=o=>({closets:o?.closets||{},items:o?.items||{},outfits:o?.outfits||{},plans:o?.plans||{},looks:o?.looks||{},deleted:o?.deleted||{}});
+const localDoc=()=>({closets:Object.fromEntries(S.closets),items:Object.fromEntries(S.items),outfits:Object.fromEntries(S.outfits),plans:Object.fromEntries(S.plans),looks:Object.fromEntries(S.looks),deleted:Object.fromEntries(S.deleted)});
 function merge(a,b){
   const out={deleted:{...b.deleted}};
   for(const[k,t]of Object.entries(a.deleted))if(!(out.deleted[k]>=t))out.deleted[k]=t;
@@ -379,7 +380,7 @@ async function applyLocal(m){
   await idbTx([...COLS,'meta'],'readwrite',t=>{for(const col of COLS){const st=t.objectStore(col);st.clear();for(const[k,v]of Object.entries(m[col]))st.put(v,k)}t.objectStore('meta').put(m.deleted,'deleted')});
   for(const col of COLS)S[col]=new Map(Object.entries(m[col]));
   S.deleted=new Map(Object.entries(m.deleted));
-  const want=wantedImages(S.items.values());
+  const want=new Set([...wantedImages(S.items.values()),...lookImages(S.looks.values())]);
   for(const id of[...URLS.keys()])if(!want.has(id))await dropImage(id);
 }
 async function putFile(path,body){
@@ -426,33 +427,41 @@ function sync(){
     try{
       for(let attempt=0;attempt<3;attempt++){
         const r=await GH.req('contents/closet.json',{ok404:true});
-        let remote=pick(null),sha=null;
+        let remote0=pick(null),sha=null;
         if(r.status!==404){
           const j=await r.json();sha=j.sha;
           const txt=j.content?new TextDecoder().decode(b64ToBytes(j.content)):await(await GH.req('contents/closet.json',{accept:'application/vnd.github.raw'})).text();
-          remote=pick(JSON.parse(txt));
+          remote0=pick(JSON.parse(txt));
         }
-        const merged=merge(localDoc(),remote);
+        const merged=merge(localDoc(),remote0);
         if(stable(merged)!==stable(localDoc()))await applyLocal(merged);
-        const want=wantedImages(Object.values(merged.items));
-        const lr=await GH.req('contents/images',{ok404:true});const remoteImgs=new Map();
-        if(lr.status!==404)for(const f of await lr.json())if(f.type==='file')remoteImgs.set(f.name.replace(/\.\w+$/,''),{sha:f.sha,name:f.name});
-        for(const id of want)if(!remoteImgs.has(id)){
-          const b=await idbGet('images',id);if(!b)continue;
-          const name=`${id}.${extOf(b.type)}`;
-          await putFile(`images/${name}`,{message:'Add photo',content:b64FromBytes(new Uint8Array(await b.arrayBuffer()))});remoteImgs.set(id,{sha:null,name});
+        const folders=[['images',wantedImages(Object.values(merged.items))],['looks',lookImages(Object.values(merged.looks||{}))]],remote={};
+        for(const[dir,want]of folders){
+          const lr=await GH.req('contents/'+dir,{ok404:true});const m=new Map();
+          if(lr.status!==404)for(const f of await lr.json())if(f.type==='file')m.set(f.name.replace(/\.\w+$/,''),{sha:f.sha,name:f.name});
+          remote[dir]=m;
+          for(const id of want)if(!m.has(id)){
+            const b=await idbGet('images',id);if(!b)continue;
+            const name=`${id}.${extOf(b.type)}`;
+            await putFile(`${dir}/${name}`,{message:dir==='looks'?'Add look':'Add photo',content:b64FromBytes(new Uint8Array(await b.arrayBuffer()))});m.set(id,{sha:null,name});
+          }
         }
-        if(stable(merged)!==stable(remote)){
-          try{await putFile('closet.json',{message:'Update closet',content:b64FromBytes(new TextEncoder().encode(JSON.stringify({app:'my-closet',version:2,savedAt:new Date().toISOString(),...merged},null,1))),...(sha?{sha}:{})})}
+        if(stable(merged)!==stable(remote0)){
+          try{await putFile('closet.json',{message:'Update closet',content:b64FromBytes(new TextEncoder().encode(JSON.stringify({app:'my-closet',version:3,savedAt:new Date().toISOString(),...merged},null,1))),...(sha?{sha}:{})})}
           catch(e){if(e.status===409||e.status===422)continue;throw e}
         }
-        for(const id of want)if(!URLS.has(id)&&remoteImgs.has(id)){
-          const f=remoteImgs.get(id);
-          const b=await(await GH.req(`contents/images/${f.name}`,{accept:'application/vnd.github.raw'})).blob();
-          const blob=new Blob([b],{type:f.name.endsWith('.png')?'image/png':'image/jpeg'});
-          await idbPut('images',id,blob);URLS.set(id,URL.createObjectURL(blob));
+        for(const[dir,want]of folders){
+          const m=remote[dir],need=[...want].filter(id=>!URLS.has(id)&&m.has(id));
+          for(let k=0;k<need.length;k++){
+            const id=need[k],f=m.get(id);
+            if(need.length>3){S.notice=`Downloading ${dir==='looks'?'looks':'photos'} from your backup (${k+1} of ${need.length})…`;if(k%5===0)render()}
+            const b=await(await GH.req(`contents/${dir}/${f.name}`,{accept:'application/vnd.github.raw'})).blob();
+            const blob=new Blob([b],{type:f.name.endsWith('.png')?'image/png':'image/jpeg'});
+            await idbPut('images',id,blob);URLS.set(id,URL.createObjectURL(blob));
+          }
+          if(need.length>3&&S.notice.startsWith('Downloading'))S.notice='';
+          for(const[id,f]of m)if(!want.has(id)&&f.sha)await GH.req(`contents/${dir}/${f.name}`,{method:'DELETE',body:JSON.stringify({message:'Remove photo',sha:f.sha})}).catch(()=>{});
         }
-        for(const[id,f]of remoteImgs)if(!want.has(id)&&f.sha)await GH.req(`contents/images/${f.name}`,{method:'DELETE',body:JSON.stringify({message:'Remove photo',sha:f.sha})}).catch(()=>{});
         ls.set('closet.lastSync',String(Date.now()));setSync('ok');render();
         return;
       }
@@ -536,7 +545,7 @@ function render(){
   let notice=S.notice?`<div class="notice" role="status">${esc(S.notice)}</div>`:'';
   if(!notice&&S.ready&&!GH.cfg()&&S.items.size)notice=`<div class="notice">Your closet is only saved on this device. <button type="button" data-open-sync>Back it up to GitHub</button></div>`;
   const y=window.scrollY;
-  $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,shuffle:shuffleView,calendar:calendarView,stats:statsView}[S.view])();
+  $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,looks:looksView,shuffle:shuffleView,calendar:calendarView,stats:statsView}[S.view]||closetView)();
   if(S.view==='shuffle')wireShuffle();
   const cats=$('.cats'),selCat=cats?.querySelector('[aria-pressed="true"]');
   if(cats&&selCat&&S.type!=='All')cats.scrollLeft=Math.max(0,selCat.offsetLeft-cats.clientWidth/2+selCat.offsetWidth/2);
@@ -785,10 +794,12 @@ function calendarView(){
   const hideWx=false;
   const first=new Date(y,mo,1),start=new Date(y,mo,1-first.getDay());
   let cells='';
+  const LK={};for(const l of S.looks.values())if(l.status===LOOK_DONE&&l.date&&URLS.has(l.imageId)&&!LK[l.date])LK[l.date]=l;
   for(let k=0;k<42;k++){
     const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+k),key=ymd(d),p=S.plans.get(key);
     if(k===35&&d.getMonth()!==mo)break;
-    const pic=p&&(p.itemIds||[]).map(id=>S.items.get(id)).sort((a,b)=>(a&&groupOf(a)==='Tops'?-1:0)-(b&&groupOf(b)==='Tops'?-1:0)).find(i=>hasImg(i));
+    let pic=p&&(p.itemIds||[]).map(id=>S.items.get(id)).sort((a,b)=>(a&&groupOf(a)==='Tops'?-1:0)-(b&&groupOf(b)==='Tops'?-1:0)).find(i=>hasImg(i));
+    if(LK[key])pic={imageId:LK[key].imageId,cutout:false};
     const has=p&&(p.itemIds||[]).length;
     cells+=`<button type="button" class="day${d.getMonth()!==mo?' out':''}${key===t?' today':''}${key>t?' future':''}${has?' has':''}${pic?' img':''}${pic?.cutout?' cut':''}" data-day="${key}" aria-label="${fmtDate(key)}${has?', '+esc(p.outfitId&&S.outfits.get(p.outfitId)?.name||'outfit planned'):''}">
       <span class="n">${d.getDate()}</span>${(()=>{const w=key>=t&&wxDay(key);return w?`<span class="wt">${w.hi}°</span>`:''})()}${pic?img(pic.imageId):has?'<span class="dot"></span>':''}</button>`;
@@ -809,6 +820,9 @@ function calendarView(){
 /* ---------- stats ---------- */
 function statsView(){
   if(!S.ready)return '';
+  return declutterCard()+statsBody();
+}
+function statsBody(){
   const c=S.statsCloset==='all'||S.closets.has(S.statsCloset)?S.statsCloset:'all';
   const W=wear().items;
   const its=[...S.items.entries()].filter(([,i])=>inCloset(i,c));
@@ -847,6 +861,7 @@ function statsView(){
 }
 
 /* ---------- main view events ---------- */
+document.addEventListener('change',e=>{if(e.target.id!=='lookFiles')return;const fs=[...e.target.files];e.target.value='';if(fs.length)importLooks(fs)});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-wxform]');if(!f)return;e.preventDefault();const q=f.querySelector('#wxQ').value;WX.setup=false;wxCity(q)});
 document.addEventListener('click',e=>{
   const tab=e.target.closest('[data-tab]');if(tab){S.view=tab.dataset.tab;ls.set('closet.view',S.view);render();scrollTo(0,0);return}
@@ -854,6 +869,9 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#syncBtn,[data-open-sync]')){syncSheet();return}
   if(e.target.closest('#manageClosets')){closetsSheet();return}
   if(e.target.closest('#bulkBtn')){bulkSheet();return}
+  const lok=e.target.closest('[data-look]');if(lok){lookSheet(lok.dataset.look);return}
+  const lf=e.target.closest('[data-lookf]');if(lf){S.lookFilter=lf.dataset.lookf;render();return}
+  const dc=e.target.closest('[data-dc]');if(dc){dc.dataset.dc==='start'?declutterSheet():leavingSheet();return}
   const wx=e.target.closest('[data-wx]');if(wx){const a=wx.dataset.wx;if(a==='here')wxUseHere();else if(a==='change'){WX.setup=true;WX.err='';render()}else if(a==='cancel'){WX.setup=false;WX.err='';render()}else if(a==='hide'){ls.set('closet.wx.off','1');render()}else if(a==='show'){ls.set('closet.wx.off',null);WX.setup=true;render()}return}
   const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';ls.set('closet.current',S.closet);render();return}
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
@@ -1182,6 +1200,7 @@ function daySheet(date){
   const outs=[...S.outfits.entries()];
   const sh=openSheet(`${head(esc(fmtDate(date)))}
     ${(()=>{const w=date>=today()&&wxDay(date);if(!w)return '';const[k,lab]=wxKind(w.code);return `<div class="wxline">${wxSvg(k)}<span><b>${lab}</b>, high ${w.hi}° / low ${w.lo}°${w.pop!=null&&w.pop>=10?` · ${w.pop}% chance of rain`:''}</span></div>`})()}
+    ${(()=>{const lks=[...S.looks.entries()].filter(([,x])=>x.date===date&&x.status===LOOK_DONE&&URLS.has(x.imageId));return lks.length?`<div class="hscroll">${lks.map(([lid,x])=>`<button type="button" class="lkthumb" data-daylook="${lid}" aria-label="Open photo">${img(x.imageId)}</button>`).join('')}</div>`:''})()}
     <p class="muted" style="margin:0">${past?'Log what you wore. It counts toward “last worn”.':'Plan what you’ll wear.'}</p>
     ${outs.length?`<div class="lbl">Saved outfits</div><div class="hscroll">${outs.map(([oid,o])=>`<button type="button" class="oc" data-oc="${oid}" aria-pressed="${outfitId===oid}">${boardHTML(o.itemIds||[],o.layout)}<small>${esc(o.name)}</small></button>`).join('')}</div>`:''}
     <div class="lbl" id="selLbl"></div>
@@ -1199,6 +1218,7 @@ function daySheet(date){
   };
   sh.querySelectorAll('[data-oc]').forEach(b=>b.addEventListener('click',()=>{const was=outfitId===b.dataset.oc;sel.clear();if(!was)(S.outfits.get(b.dataset.oc).itemIds||[]).forEach(i=>S.items.has(i)&&sel.add(i));sync_()}));
   wirePicker(sh,sel,sync_);sync_();
+  sh.querySelectorAll('[data-daylook]').forEach(b=>b.addEventListener('click',()=>{closeSheet();lookSheet(b.dataset.daylook)}));
   const save=sh.querySelector('#save');save.addEventListener('click',()=>guard(save,async()=>{
     if(!sel.size){toast('Pick an outfit or some pieces.');return}
     let oid=outfitId;const nn=sh.querySelector('#dNew').value.trim();
@@ -1303,6 +1323,275 @@ async function refitCutouts(){
   if(S.notice.startsWith('Removing backgrounds'))S.notice='';
   if(changed){render();scheduleSync()}
 }
+/* ---------- looks: photos of you wearing your clothes. Confirm the pieces and they're logged on the day the photo was taken ---------- */
+const LOOK_DONE='done',LOOK_SKIP='skipped';
+// Capture date from a JPEG's EXIF (DateTimeOriginal, else DateTime) as YYYY-MM-DD, or null.
+async function exifDate(file){
+  try{
+    const v=new DataView(await file.slice(0,256*1024).arrayBuffer());
+    if(v.getUint16(0)!==0xFFD8)return null;
+    let o=2;
+    while(o+10<v.byteLength){
+      const m=v.getUint16(o),len=v.getUint16(o+2);
+      if(m===0xFFE1&&v.getUint32(o+4)===0x45786966){
+        const t=o+10,le=v.getUint16(t)===0x4949,u16=p=>v.getUint16(t+p,le),u32=p=>v.getUint32(t+p,le);
+        const str=p=>{let s='';for(let i=0;i<19;i++){const c=v.getUint8(t+p+i);if(!c)break;s+=String.fromCharCode(c)}return s};
+        const ifd=(p,want)=>{const n=u16(p),out={};for(let i=0;i<n;i++){const e=p+2+i*12,tag=u16(e);if(want.includes(tag))out[tag]=tag===0x8769?u32(e+8):str(u32(e+8))}return out};
+        const i0=ifd(u32(4),[0x0132,0x8769]);
+        const dt=(i0[0x8769]&&ifd(i0[0x8769],[0x9003])[0x9003])||i0[0x0132];
+        const mm=dt&&dt.match(/^(\d{4}):(\d{2}):(\d{2})/);
+        return mm&&mm[1]>'1990'?`${mm[1]}-${mm[2]}-${mm[3]}`:null;
+      }
+      if((m&0xFF00)!==0xFF00||m===0xFFDA)break;
+      o+=2+len;
+    }
+  }catch(e){}
+  return null;
+}
+async function lookImage(file){
+  const url=URL.createObjectURL(file);let im;
+  try{im=await loadImage(url)}catch(e){throw{code:'unsupported_type'}}finally{URL.revokeObjectURL(url)}
+  const s=Math.min(1,1100/Math.max(im.naturalWidth,im.naturalHeight)),c=document.createElement('canvas');
+  c.width=Math.round(im.naturalWidth*s);c.height=Math.round(im.naturalHeight*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+}
+async function importLooks(files){
+  const sigs=new Set([...S.looks.values()].map(l=>l.sig).filter(Boolean));let added=0,dupes=0,bad=0,undated=0;
+  for(let i=0;i<files.length;i++){
+    const f=files[i];S.notice=`Adding photos (${i+1} of ${files.length}). Keep the app open.`;render();await paintPause();
+    try{
+      const ex=await exifDate(f),sig=`${ex||''}|${f.size}`;if(sigs.has(sig)){dupes++;continue}
+      const date=ex||ymd(new Date(f.lastModified||Date.now()));if(!ex)undated++;
+      const imageId=await addImage(await lookImage(f));
+      const lid=newId(),doc={imageId,date,dateGuess:!ex,status:'new',source:'phone',sig,createdAt:Date.now(),updatedAt:Date.now()};
+      await idbPut('looks',lid,doc);S.looks.set(lid,doc);sigs.add(sig);added++;
+    }catch(e){console.warn(e);bad++}
+  }
+  S.notice='';S.lookFilter='todo';render();scheduleSync();
+  toast([added?`Added ${added} photo${added===1?'':'s'}`:'No new photos',dupes?`${dupes} already here`:'',bad?`${bad} couldn’t be read`:'',undated?`check the date on ${undated}`:''].filter(Boolean).join(' · '));
+}
+function looksView(){
+  if(!S.ready)return '';
+  const all=[...S.looks.entries()].sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||'')||(b[1].createdAt||0)-(a[1].createdAt||0));
+  const isTodo=l=>l.status!==LOOK_DONE&&l.status!==LOOK_SKIP;
+  const todo=all.filter(([,l])=>isTodo(l)),done=all.filter(([,l])=>l.status===LOOK_DONE),skipped=all.filter(([,l])=>l.status===LOOK_SKIP);
+  const add=`<label class="bulkbtn filebtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8.5 5l1.5-2h4l1.5 2"/></svg>Add photos of you<input type="file" accept="image/*" multiple id="lookFiles"></label>`;
+  if(!all.length)return add+empty('No looks yet','Add photos of yourself wearing your clothes. Pick the pieces you’re wearing and they’re logged on the day the photo was taken.');
+  const f=['todo','done','skipped','all'].includes(S.lookFilter)?S.lookFilter:'todo';
+  const list={todo,done,skipped,all}[f];
+  const chip=(k,l,n)=>`<button class="chip" type="button" data-lookf="${k}" aria-pressed="${f===k}">${l} <small>${n}</small></button>`;
+  return add+`<div class="chips" role="group" aria-label="Show">${chip('todo','To check',todo.length)}${chip('done','Logged',done.length)}${skipped.length?chip('skipped','Skipped',skipped.length):''}${chip('all','All',all.length)}</div>
+    ${f==='todo'&&todo.length?`<p class="muted" style="margin:0;font-size:13px">Tap a photo, check the pieces you’re wearing, and it’s added to that day on the calendar.</p>`:''}
+    ${list.length?`<div class="lgrid">${list.map(([id,l])=>`<button type="button" class="look" data-look="${id}" aria-label="Look from ${fmtDate(l.date)}"><div class="ph">${img(l.imageId)}${l.status===LOOK_DONE?'<span class="lbadge" aria-hidden="true">✓</span>':''}</div><small>${fmtDate(l.date)}${l.status===LOOK_DONE&&l.itemIds?.length?` · ${l.itemIds.length} piece${l.itemIds.length===1?'':'s'}`:''}</small></button>`).join('')}</div>`
+      :`<p class="muted">${f==='todo'?'All caught up. Every photo has been checked.':'Nothing here yet.'}</p>`}`;
+}
+// --- best guess of the pieces in a look (on-device CLIP image similarity) ---
+const cosSim=(a,b)=>{let d=0;for(let k=0;k<a.ie.length;k++)d+=a.ie[k]*b.ie[k];return d/(a.norm*b.norm)};
+async function cropBlob(blob,y0,y1){
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+  const w=im.naturalWidth,h=im.naturalHeight,c=document.createElement('canvas');c.width=w;c.height=Math.max(1,Math.round(h*(y1-y0)));
+  c.getContext('2d').drawImage(im,0,h*y0,w,c.height,0,0,w,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
+}
+const LOOK_CROPS={full:[0,1],upper:[.08,.6],lower:[.42,.95],feet:[.72,1]};
+// where each kind of piece usually sits in a photo of a person: [x0,y0,x1,y1] as fractions of the whole photo
+const LOOK_PATCH={upper:[.36,.25,.64,.45],lower:[.38,.58,.62,.8],full:[.36,.3,.64,.7],feet:[.3,.88,.7,.98]};
+const GROUP_PATCH={Tops:'upper',Outerwear:'upper','One-pieces':'full',Bottoms:'lower',Shoes:'feet'};
+function toLab(r,g,b){const f=c=>{c/=255;return c>.04045?((c+.055)/1.055)**2.4:c/12.92};const R=f(r),G=f(g),B=f(b);
+  const x=(R*.4124+G*.3576+B*.1805)/.95047,y=R*.2126+G*.7152+B*.0722,z=(R*.0193+G*.1192+B*.9505)/1.08883,h=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;
+  return[116*h(y)-16,500*(h(x)-h(y)),200*(h(y)-h(z))]}
+async function patchColours(blob){
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);const c=document.createElement('canvas');c.width=60;c.height=80;
+  const g=c.getContext('2d');g.drawImage(im,0,0,60,80);const out={};
+  for(const[k,[x0,y0,x1,y1]]of Object.entries(LOOK_PATCH)){
+    const d=g.getImageData(Math.round(x0*60),Math.round(y0*80),Math.max(1,Math.round((x1-x0)*60)),Math.max(1,Math.round((y1-y0)*80))).data,ch=[[],[],[]];
+    for(let i=0;i<d.length;i+=4)for(let j=0;j<3;j++)ch[j].push(d[i+j]);
+    out[k]=toLab(...ch.map(a=>a.sort((p,q)=>p-q)[a.length>>1]));
+  }
+  return out;
+}
+const GROUP_CROPS={Tops:['full','upper'],Outerwear:['full','upper'],'One-pieces':['full'],Bottoms:['lower','full'],Shoes:['feet'],Bags:['full'],Accessories:['full','upper'],Other:['full']};
+async function embStore(key,make){
+  let e=null;try{e=await idbGet('emb',key)}catch(_){}
+  if(e&&e.ie)return e;e=await make();if(e)try{await idbPut('emb',key,e)}catch(_){}
+  return e;
+}
+async function guessLook(lid,status){
+  const l=S.looks.get(lid);const blob=l&&await idbGet('images',l.imageId);if(!blob)throw new Error('photo not on this device');
+  const dl=m=>{if(/Downloading/.test(m))status(m)};
+  const its=[...S.items.entries()].filter(([,i])=>i.imageId);
+  const E={};const need=[];
+  for(const[id,i]of its){let e=null;try{e=await idbGet('emb','item:'+i.imageId)}catch(_){}if(e&&e.ie)E[id]=e;else need.push([id,i])}
+  for(let k=0;k<need.length;k++){const[id,i]=need[k];
+    status(`Getting to know your closet (${k+1} of ${need.length}). This only happens once.`);
+    const b=await idbGet('images',i.imageId);if(!b)continue;
+    E[id]=await embStore('item:'+i.imageId,()=>embedImage(b,dl));await paintPause();
+  }
+  status('Looking at the photo…');
+  const L={};for(const[k,[a,b]]of Object.entries(LOOK_CROPS))L[k]=await embStore(`look:${l.imageId}:${k}`,async()=>embedImage(k==='full'?blob:await cropBlob(blob,a,b),dl));
+  // similarity of every piece to each part of the photo, standardised across the whole closet per part,
+  // so a category with only one or two pieces isn't over- or under-rated
+  const ids=its.map(([id])=>id).filter(id=>E[id]),Z={};
+  for(const k of Object.keys(LOOK_CROPS)){
+    const v=ids.map(id=>cosSim(L[k],E[id])),m=v.reduce((a,b)=>a+b,0)/v.length,sd=Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/v.length)||1;
+    ids.forEach((id,n)=>{(Z[id]??={})[k]=(v[n]-m)/sd});
+  }
+  // colour check: the piece's saved colour against the colour where that kind of piece sits in the photo
+  let PC=null;try{PC=await patchColours(blob)}catch(_){}
+  if(PC){
+    const dist={};for(const id of ids){const it=S.items.get(id),p=GROUP_PATCH[groupOf(it)],hex=it.colourHex||GEN_HEX[genericName(it.colour)];
+      if(p&&hex){const a=toLab(...hexToRgb(hex)),b=PC[p];dist[id]=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])}}
+    const v=Object.values(dist);if(v.length>2){const m=v.reduce((a,b)=>a+b,0)/v.length,sd=Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/v.length)||1;
+      for(const id in dist)Z[id].col=(m-dist[id])/sd}
+  }
+  const ranked=[],best={};
+  for(const id of ids){const g=groupOf(S.items.get(id));const z=Math.max(...(GROUP_CROPS[g]||['full']).map(k=>Z[id][k]))+.9*(Z[id].col||0);const r={id,g,z,s:z};ranked.push(r);if(!best[g]||z>best[g].z)best[g]=r}
+  ranked.sort((a,b)=>b.z-a.z||b.s-a.s);
+  const pick=[],T=best.Tops,B=best.Bottoms,O=best['One-pieces'];
+  if(O&&(!T||!B||O.z>(T.z+B.z)/2))pick.push(O.id);else{if(T)pick.push(T.id);if(B)pick.push(B.id)}
+  for(const[g,z]of[['Outerwear',1.3],['Shoes',1.3],['Bags',1.6]])if(best[g]&&best[g].z>=z)pick.push(best[g].id);
+  return{pick,ranked:ranked.slice(0,12).map(r=>r.id)};
+}
+// remove a logged look's pieces from its day (keeps anything else logged that day)
+async function unlogLook(l){
+  if(!l||l.status!==LOOK_DONE||!l.date)return;
+  const p=S.plans.get(l.date);if(!p)return;
+  const otherLooks=[...S.looks.values()].filter(x=>x!==l&&x.status===LOOK_DONE&&x.date===l.date).flatMap(x=>x.itemIds||[]);
+  const rest=(p.itemIds||[]).filter(i=>!(l.itemIds||[]).includes(i)||otherLooks.includes(i));
+  if(rest.length||p.note)await saveDoc('plans',l.date,{...p,itemIds:rest,outfitId:p.outfitId&&p.outfitId===l.outfitId?null:p.outfitId||null});
+  else await delDoc('plans',l.date);
+}
+function lookSheet(lid){
+  const l=S.looks.get(lid);if(!l)return;
+  const sel=new Set((l.itemIds||[]).filter(i=>S.items.has(i)));let outfitId=l.outfitId&&S.outfits.has(l.outfitId)?l.outfitId:null,touched=!!sel.size;
+  const outs=[...S.outfits.entries()];
+  const sh=openSheet(`${head(l.status===LOOK_DONE?'Logged look':'What are you wearing?')}
+    <div class="lookph">${img(l.imageId)}</div>
+    <div class="field"><label for="lDate">Day you wore it</label><input id="lDate" type="date" value="${l.date||today()}" max="${today()}"></div>
+    ${l.dateGuess?`<p class="muted" style="margin:-6px 0 0;font-size:13px">This photo didn’t say when it was taken. Check the date.</p>`:''}
+    <div class="lbl">Best guesses <small class="muted" style="text-transform:none;letter-spacing:0">(tap to add or remove)</small></div>
+    <div class="guess" id="guess"><p class="muted" id="gMsg" style="margin:0;font-size:13px">${S.items.size?'Finding your pieces…':'Add pieces to your closet first.'}</p></div>
+    ${outs.length?`<div class="lbl">Or a saved outfit</div><div class="hscroll">${outs.map(([oid,o])=>`<button type="button" class="oc" data-oc="${oid}" aria-pressed="${outfitId===oid}">${boardHTML(o.itemIds||[],o.layout)}<small>${esc(o.name)}</small></button>`).join('')}</div>`:''}
+    <div class="lbl" id="selLbl"></div>
+    ${pickerHTML(sel)}
+    <div class="field"><label for="lNew">Save these pieces as an outfit (optional)</label><input id="lNew" placeholder="Outfit name" autocomplete="off"></div>
+    <div class="btns"><button class="btn primary" type="button" id="lSave">${l.status===LOOK_DONE?'Save changes':'Log this look'}</button>
+      ${l.status!==LOOK_SKIP?`<button class="btn" type="button" id="lSkip">No clothes to log</button>`:''}
+      <button class="btn danger" type="button" id="lDel">Delete photo</button></div>`);
+  const sync_=()=>{
+    sh.querySelectorAll('[data-pk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.pk)));
+    sh.querySelectorAll('[data-gk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.gk)));
+    sh.querySelectorAll('[data-oc]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.oc===outfitId));
+    sh.querySelector('#selLbl').textContent=`Pieces · ${sel.size} selected`;
+  };
+  wirePicker(sh,sel,()=>{touched=true;outfitId=null;sync_()});
+  sh.querySelectorAll('[data-oc]').forEach(b=>b.addEventListener('click',()=>{touched=true;const was=outfitId===b.dataset.oc;sel.clear();outfitId=was?null:b.dataset.oc;if(!was)(S.outfits.get(b.dataset.oc).itemIds||[]).forEach(i=>S.items.has(i)&&sel.add(i));sync_()}));
+  const gbox=sh.querySelector('#guess');
+  gbox.addEventListener('click',e=>{const b=e.target.closest('[data-gk]');if(!b)return;touched=true;outfitId=null;const id=b.dataset.gk;sel.has(id)?sel.delete(id):sel.add(id);sync_()});
+  sync_();
+  if(S.items.size)(async()=>{
+    const msg=t=>{const m=sh.querySelector('#gMsg');if(m)m.textContent=t};
+    try{
+      let g=l.guess&&l.guessN===S.items.size?l.guess:null;
+      if(!g){g=await guessLook(lid,msg);const cur=S.looks.get(lid);if(cur){const v={...cur,guess:g,guessN:S.items.size};await idbPut('looks',lid,v);S.looks.set(lid,v)}}
+      if(!sh.isConnected)return;
+      const ids=[...new Set([...g.pick,...g.ranked])].filter(i=>S.items.has(i)).slice(0,12);
+      gbox.innerHTML=ids.map(id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-gk="${id}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`}).join('');
+      if(!touched&&l.status!==LOOK_DONE){g.pick.filter(i=>S.items.has(i)).forEach(i=>sel.add(i));sync_()}
+    }catch(e){console.error(e);msg('Couldn’t make a guess for this photo. Pick the pieces below.')}
+  })();
+  const save=sh.querySelector('#lSave');save.addEventListener('click',()=>guard(save,async()=>{
+    const date=sh.querySelector('#lDate').value;if(!date){toast('Pick the day you wore it.');return}
+    if(!sel.size){toast('Pick the pieces you’re wearing, or tap “No clothes to log”.');return}
+    const nn=sh.querySelector('#lNew').value.trim();
+    if(nn){outfitId=newId();await saveDoc('outfits',outfitId,{name:nn,itemIds:[...sel],layout:autoLayout([...sel]),createdAt:Date.now()})}
+    const cur=S.looks.get(lid)||l;await unlogLook(cur);
+    const p=S.plans.get(date);
+    await saveDoc('plans',date,{note:'',...(p||{}),itemIds:[...new Set([...(p?.itemIds||[]),...sel])],outfitId:outfitId||p?.outfitId||null});
+    await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false});
+    closeSheet();toast(`Logged on ${fmtDate(date)}`);
+  }));
+  const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
+    const cur=S.looks.get(lid);await unlogLook(cur);await saveDoc('looks',lid,{...cur,status:LOOK_SKIP,itemIds:[],outfitId:null});closeSheet();toast('Skipped')}));
+  const del=sh.querySelector('#lDel');armDelete(del,()=>guard(del,async()=>{
+    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Photo deleted')}),'Delete photo');
+}
+
+/* ---------- declutter: guided review of pieces to reconsider ---------- */
+const FATES={donate:'Donate',sell:'Sell',toss:'Toss'};
+function declutterList(){
+  const W=wear().items,out=[];const twins={};
+  for(const[id,i]of S.items){const c=genericName(i.colour);if(c)(twins[typeOf(i)+'|'+c]??=[]).push(id)}
+  for(const[id,i]of S.items){
+    if(i.fate||(i.keptAt&&Date.now()-i.keptAt<180*864e5))continue;
+    const r=W[id],wears=r?.worn.length||0,l=last(r),age=Math.max(0,Math.round((Date.now()-(i.createdAt||Date.now()))/864e5));
+    const why=[];let score=0;
+    if(!wears){why.push(age>=30?'Not worn since you added it':'No wears logged yet');score+=age>=30?3:1}
+    else if(daysAgo(l)>=90){const mo=Math.round(daysAgo(l)/30);why.push(`Not worn in ${mo} month${mo===1?'':'s'}`);score+=2+Math.min(3,daysAgo(l)/180)}
+    else if(wears<=2&&age>=60){why.push(`Worn only ${wears===1?'once':'twice'}`);score+=1.5}
+    const sim=(twins[typeOf(i)+'|'+genericName(i.colour)]||[]).filter(x=>x!==id);
+    if(sim.length){const mostWorn=Math.max(...sim.map(x=>W[x]?.worn.length||0));
+      why.push(`Similar to ${S.items.get(sim[0])?.name||'another piece'}${sim.length>1?` and ${sim.length-1} more`:''}`);score+=mostWorn>=wears?2:.8}
+    const pr=Number(i.price);if(pr>0&&age>=60&&pr/(wears||1)>=40){why.push(`${money(pr/(wears||1))} per wear so far`);score+=1}
+    if(score>=1.5||(score>0&&sim.length))out.push({id,why,score});
+  }
+  return out.sort((a,b)=>b.score-a.score);
+}
+const DC_Q=['Would you buy it again today?','Does it fit you right now?','Have you reached for it this season?','Does it go with at least three other pieces?','Would you be fine if it was gone tomorrow?','Is it waiting for an occasion that never comes?'];
+function declutterSheet(){
+  const queue=declutterList();let i=0,counts={keep:0,donate:0,sell:0,toss:0};
+  const sh=openSheet(`${head('Declutter')}<div id="dc" class="dc"></div>`);const box=sh.querySelector('#dc');
+  const show=()=>{
+    while(i<queue.length&&!S.items.has(queue[i].id))i++;
+    if(i>=queue.length){
+      const n=counts.donate+counts.sell+counts.toss;
+      box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>${queue.length?'All done':'Nothing to reconsider'}</h2><p>${queue.length?`You kept ${counts.keep} and marked ${n} to let go.`:'Log more outfits and looks, and pieces you don’t wear will show up here.'}</p></div>
+        <div class="btns">${[...S.items.values()].some(x=>x.fate)?'<button class="btn primary" type="button" data-dcgo>See what’s leaving</button>':''}<button class="btn" type="button" data-dcclose>Close</button></div>`;
+      return;
+    }
+    const{id,why}=queue[i],it=S.items.get(id),W=wear().items[id],wears=W?.worn.length||0,l=last(W),pr=Number(it.price);
+    box.innerHTML=`<p class="muted" style="margin:0;font-size:13px">${i+1} of ${queue.length}</p>
+      <div class="dcph ${phCls(it)}">${thumb(it)}</div>
+      <h3 style="margin:0;text-align:center">${esc(it.name||'Piece')}</h3>
+      <div class="dcwhy">${why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>
+      <div class="stats"><div class="stat"><b>${wears}×</b><small>Worn</small></div><div class="stat"><b>${l?shortAgo(l):'—'}</b><small>Last worn</small></div><div class="stat"><b>${pr?money(pr):'—'}</b><small>Price</small></div></div>
+      <p class="dcq">${DC_Q[i%DC_Q.length]}</p>
+      <div class="dcbtns"><button class="btn primary" type="button" data-fate="keep">Keep</button><button class="btn" type="button" data-fate="donate">Donate</button><button class="btn" type="button" data-fate="sell">Sell</button><button class="btn" type="button" data-fate="toss">Toss</button></div>
+      <button class="linkbtn" type="button" data-fate="skip">Decide later</button>`;
+  };
+  box.addEventListener('click',async e=>{
+    if(e.target.closest('[data-dcclose]')){closeSheet();return}
+    if(e.target.closest('[data-dcgo]')){closeSheet();leavingSheet();return}
+    const b=e.target.closest('[data-fate]');if(!b||b.disabled)return;
+    const f=b.dataset.fate,id=queue[i]?.id,it=S.items.get(id);
+    box.querySelectorAll('[data-fate]').forEach(x=>x.disabled=true);
+    try{if(it&&f==='keep'){await saveDoc('items',id,{...it,keptAt:Date.now()});counts.keep++}
+      else if(it&&FATES[f]){await saveDoc('items',id,{...it,fate:f,fateAt:Date.now()});counts[f]++}}
+    catch(err){console.error(err);toast('Couldn’t save. Please try again.')}
+    i++;show();
+  });
+  show();
+}
+function leavingSheet(){
+  const sh=openSheet(`${head('On the way out')}<div id="lv" class="list"></div>`);const box=sh.querySelector('#lv');
+  const show=()=>{
+    const rows=[...S.items.entries()].filter(([,i])=>i.fate).sort((a,b)=>(a[1].fate||'').localeCompare(b[1].fate||'')||(b[1].fateAt||0)-(a[1].fateAt||0));
+    if(!rows.length){box.innerHTML=`<p class="muted" style="margin:0">Nothing marked to let go.</p>`;return}
+    const total=rows.filter(([,i])=>i.fate==='sell').reduce((a,[,i])=>a+(Number(i.price)||0),0);
+    box.innerHTML=`<p class="muted" style="margin:0;font-size:13px">When a piece is gone, tap “It’s gone” to remove it from your closet. Its wear history goes with it.${total?` Pieces to sell cost ${money(total)} new.`:''}</p>`+
+      rows.map(([id,i])=>`<div class="li lvrow"><span class="mini ${i.cutout&&hasImg(i)?'cut':''}">${thumb(i)}</span><span class="tx"><b>${esc(i.name||'Piece')}</b><small>${FATES[i.fate]||i.fate}</small></span>
+        <span class="lvb"><button class="btn sm danger" type="button" data-gone="${id}">It’s gone</button><button class="linkbtn" type="button" data-undo="${id}">Keep it</button></span></div>`).join('');
+    box.querySelectorAll('[data-gone]').forEach(b=>armDelete(b,()=>guard(b,async()=>{const id=b.dataset.gone,it=S.items.get(id);if(!it)return;await delDoc('items',id);for(const d of imageIdsOf(it))await dropImage(d);toast(`Removed ${it.name||'piece'}`);show()}),'It’s gone'));
+  };
+  box.addEventListener('click',async e=>{const u=e.target.closest('[data-undo]');if(!u)return;const it=S.items.get(u.dataset.undo);if(it){const{fate,fateAt,...rest}=it;await saveDoc('items',u.dataset.undo,{...rest,keptAt:Date.now()})}show()});
+  show();
+}
+function declutterCard(){
+  if(!S.items.size)return '';
+  const n=declutterList().length,out=[...S.items.values()].filter(i=>i.fate).length;
+  return `<div class="dccard"><div class="tx"><b>Declutter</b><small>${n?`${n} piece${n===1?'':'s'} to reconsider`:'Nothing to reconsider right now'}${out?` · ${out} on the way out`:''}</small></div>
+    <div class="btnrow">${n?'<button class="btn sm primary" type="button" data-dc="start">Start</button>':''}${out?'<button class="btn sm" type="button" data-dc="leaving">Leaving</button>':''}</div></div>`;
+}
+
 /* ---------- boot ---------- */
 render();
 (async()=>{
