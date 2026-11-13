@@ -38,9 +38,9 @@ function rgbToName(r,g,b){
 const hexToName=h=>rgbToName(...hexToRgb(h));
 const swatchOf=it=>it?.colourHex||GEN_HEX[genericName(it?.colour)]||okColour(it?.colour);
 const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boolean);
-const COLS=['closets','items','outfits','plans','looks'];
+const COLS=['closets','items','outfits','plans','looks','prefs'];
 const MAIN='main';
-const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
+const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),prefs:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
   shuf:{closet:'all',style:'',outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
@@ -81,7 +81,7 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 /* ---------- IndexedDB ---------- */
 let IDB=null;
 function idbOpen(){return new Promise((res,rej)=>{
-  const r=indexedDB.open('my-closet',3);
+  const r=indexedDB.open('my-closet',4);
   r.onupgradeneeded=()=>{for(const s of[...COLS,'images','meta','emb'])if(!r.result.objectStoreNames.contains(s))r.result.createObjectStore(s)};
   r.onblocked=()=>{S.notice='The app is open in another tab with an older version. Close that tab to finish updating.';render()};
   r.onsuccess=()=>{const db=r.result;db.onversionchange=()=>{db.close();S.notice='A newer version of the app was opened. Reload this page to keep using it.';render()};if(S.notice.startsWith('The app is open'))S.notice='';res(db)};
@@ -258,7 +258,14 @@ async function embedImage(blob,status){
 async function detectType(blob,status,img){
   img=img||await embedImage(blob,status);
   const types=Object.keys(TYPE_PHRASE),T=await clipText('types',types.map(t=>`a product photo of ${TYPE_PHRASE[t]}`));
-  const p=clipProbs(img,T);return types[p.indexOf(Math.max(...p))];
+  const p=clipProbs(img,T);
+  // your own closet as examples: pieces that look like this one, and what you called them
+  const near=[];
+  for(const[,i]of S.items){if(!i.imageId||!GROUP_OF[i.type])continue;let e=null;try{e=await idbGet('emb','item:'+i.imageId)}catch(_){}if(e&&e.ie){const s=cosSim(img,e);if(s>=.8)near.push({t:i.type,s})}}
+  near.sort((a,b)=>b.s-a.s);const votes={};let tot=0;
+  for(const n of near.slice(0,7)){const w=n.s-.75;votes[n.t]=(votes[n.t]||0)+w;tot+=w}
+  const score=types.map((t,n)=>p[n]+(tot?1.5*(votes[t]||0)/tot:0));
+  return types[score.indexOf(Math.max(...score))];
 }
 
 /* details for more descriptive names. base = index of the "nothing special" option (left out of the name);
@@ -346,7 +353,7 @@ async function autoDetect(blob,cutout,status){
   let det={word:SINGULAR[type]||type.toLowerCase(),details:[]};try{det=await describe(img,type)}catch(e){console.warn('describe',e)}
   const words=[colourWord(col),...det.details,det.word].filter(Boolean).join(' ');
   const name=words[0].toUpperCase()+words.slice(1);
-  return{type,group:GROUP_OF[type]||'Other',colour:col?.name||'',colourHex:col?.hex||null,colours2:col?.secondary||[],name};
+  return{type,group:GROUP_OF[type]||'Other',colour:col?.name||'',colourHex:col?.hex||null,colours2:col?.secondary||[],name,emb:img};
 }
 
 /* ---------- GitHub sync ---------- */
@@ -362,8 +369,8 @@ const GH={
 const b64FromBytes=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)};
 const b64ToBytes=b=>Uint8Array.from(atob(b.replace(/\s/g,'')),c=>c.charCodeAt(0));
 const stable=v=>Array.isArray(v)?'['+v.map(stable).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}':JSON.stringify(v??null);
-const pick=o=>({closets:o?.closets||{},items:o?.items||{},outfits:o?.outfits||{},plans:o?.plans||{},looks:o?.looks||{},deleted:o?.deleted||{}});
-const localDoc=()=>({closets:Object.fromEntries(S.closets),items:Object.fromEntries(S.items),outfits:Object.fromEntries(S.outfits),plans:Object.fromEntries(S.plans),looks:Object.fromEntries(S.looks),deleted:Object.fromEntries(S.deleted)});
+const pick=o=>({closets:o?.closets||{},items:o?.items||{},outfits:o?.outfits||{},plans:o?.plans||{},looks:o?.looks||{},prefs:o?.prefs||{},deleted:o?.deleted||{}});
+const localDoc=()=>({closets:Object.fromEntries(S.closets),items:Object.fromEntries(S.items),outfits:Object.fromEntries(S.outfits),plans:Object.fromEntries(S.plans),looks:Object.fromEntries(S.looks),prefs:Object.fromEntries(S.prefs),deleted:Object.fromEntries(S.deleted)});
 function merge(a,b){
   const out={deleted:{...b.deleted}};
   for(const[k,t]of Object.entries(a.deleted))if(!(out.deleted[k]>=t))out.deleted[k]=t;
@@ -665,9 +672,29 @@ function shufPool(group){
   const sh=S.shuf,st=sh.style;
   return [...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&groupOf(i)===group&&(!st||(i.style||'').trim().toLowerCase()===st));
 }
-function weightedPick(entries,W){
+
+// Shuffle taste: what you pair together. Pieces worn together on the calendar count as a good pair; 👍/save/wear
+// strengthen a pairing, 👎 weakens it, and shuffling past an outfit straight away weakens it a little.
+const pairKey=(a,b)=>a<b?a+'|'+b:b+'|'+a;
+const taste=()=>S.prefs.get('taste')||{pairs:{},skips:{}};
+async function bumpTaste(ids,dPair,dSkip){
+  if(!ids.length)return;const t=JSON.parse(JSON.stringify(taste()));t.pairs??={};t.skips??={};
+  for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){const k=pairKey(ids[a],ids[b]);t.pairs[k]=Math.max(-3,Math.min(3,(t.pairs[k]||0)+dPair))}
+  if(dSkip)for(const id of ids)t.skips[id]=(t.skips[id]||0)+dSkip;
+  await saveDoc('prefs','taste',t);
+}
+function coWear(){const m={};for(const p of S.plans.values()){const ids=[...new Set(p.itemIds||[])];for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){const k=pairKey(ids[a],ids[b]);m[k]=(m[k]||0)+1}}return m}
+const hueOf=it=>{const hex=it?.colourHex||GEN_HEX[genericName(it?.colour)];if(!hex)return null;const[r,g,b]=hexToRgb(hex).map(v=>v/255),mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx-mn<.18)return null;
+  const d=mx-mn;let h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return(h*60+360)%360};
+// two loud, clashing colours together are less likely; neutrals go with anything
+function harmony(id,chosen){let f=1;const h=hueOf(S.items.get(id));if(h===null)return 1;
+  for(const c of chosen){const h2=hueOf(S.items.get(c));if(h2===null)continue;const d=Math.min(Math.abs(h-h2),360-Math.abs(h-h2));if(d>40&&d<150)f*=.7}return f}
+function weightedPick(entries,W,chosen=[],ctx=null){
   if(!entries.length)return null;
-  const w=entries.map(([id])=>{const l=last(W[id]);return !l?1.6:daysAgo(l)<7?.35:1});
+  const w=entries.map(([id])=>{const l=last(W[id]);let x=!l?1.6:daysAgo(l)<7?.35:daysAgo(l)>45?1.3:1;
+    if(ctx){let a=0;for(const c of chosen){const k=pairKey(id,c);a+=Math.max(-2.5,Math.min(2.5,.6*Math.min(3,ctx.cw[k]||0)+(ctx.t.pairs?.[k]||0)))}
+      x*=Math.exp(.7*a)*harmony(id,chosen)/(1+.12*(ctx.t.skips?.[id]||0))}
+    return x});
   let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let k=0;k<entries.length;k++){r-=w[k];if(r<=0)return entries[k][0]}return entries[entries.length-1][0];
 }
 function doShuffle(){
@@ -680,7 +707,9 @@ function doShuffle(){
   if(!mode){sh.slots={};sh.err='Add some tops and bottoms (or dresses) to this closet to shuffle outfits.';return}
   sh.err='';
   const want=mode==='one'?['one']:['top','bottom'];want.push('shoes');if(sh.outer)want.push('outer');if(sh.bag)want.push('bag');if(sh.acc)want.push('acc');
-  for(const k of want)if(!slots[k]){const id=weightedPick(P[k],W);if(id)slots[k]=id}
+  const ctx={cw:coWear(),t:taste()};
+  for(const k of want)if(!slots[k]){const id=weightedPick(P[k],W,Object.values(slots),ctx);if(id)slots[k]=id}
+  sh.shownAt=Date.now();
   sh.slots=slots;for(const k of[...L])if(!slots[k])L.delete(k);
 }
 const SLOTNAME={top:'Top',bottom:'Bottom',one:'Dress / jumpsuit',shoes:'Shoes',outer:'Outerwear',bag:'Bag',acc:'Accessory'};
@@ -697,13 +726,17 @@ function shuffleView(){
     ${boardHTML(ids,null,'big')}
     <div class="slots">${Object.entries(sh.slots).map(([k,id])=>{const it=S.items.get(id);return `<div class="slot"><span class="mini ${it?.cutout&&hasImg(it)?'cut':''}">${thumb(it)}</span><span class="tx"><small>${SLOTNAME[k]}</small><b>${esc(it?.name)}</b></span><button type="button" class="lock" data-lock="${k}" aria-pressed="${sh.locks.has(k)}">${sh.locks.has(k)?'Locked':'Lock'}</button></div>`}).join('')}</div>
     <p class="muted" style="margin:0;font-size:13px">Lock the pieces you like, then shuffle the rest. Pieces worn in the last week come up less often.</p>
-    <div class="btns"><button class="btn primary" type="button" id="shGo">Shuffle</button><button class="btn" type="button" id="shSave">Save as outfit</button><button class="btn" type="button" id="shWear">Wear today</button></div>`}`;
+    <div class="btns"><button class="btn primary" type="button" id="shGo">Shuffle</button><button class="btn" type="button" id="shLike" aria-label="I like this outfit">👍</button><button class="btn" type="button" id="shNope" aria-label="Not for me">👎</button><button class="btn" type="button" id="shSave">Save as outfit</button><button class="btn" type="button" id="shWear">Wear today</button></div>
+    <p class="muted" style="margin:0;font-size:12px">Shuffle learns from 👍, 👎, what you save and wear, and what you wear together on the calendar.</p>`}`;
 }
 function wireShuffle(){
   const sh=S.shuf;
-  $('#shGo')?.addEventListener('click',()=>{doShuffle();render()});
-  $('#shSave')?.addEventListener('click',()=>outfitSheet(null,Object.values(sh.slots)));
-  $('#shWear')?.addEventListener('click',async e=>{const ids=Object.values(sh.slots);await guard(e.currentTarget,async()=>{let oid=matchOutfit(ids);await saveDoc('plans',today(),{itemIds:ids,outfitId:oid,note:S.plans.get(today())?.note||''});toast('Logged for today')})});
+  $('#shGo')?.addEventListener('click',()=>{const free=Object.entries(sh.slots).filter(([k])=>!sh.locks.has(k)).map(([,id])=>id);
+    if(free.length&&sh.shownAt&&Date.now()-sh.shownAt<4000)bumpTaste(Object.values(sh.slots),-.1,1).catch(()=>{});doShuffle();render()});
+  $('#shLike')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),.6,0);toast('Got it. More outfits like this.')});
+  $('#shNope')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),-.6,0);doShuffle();render();toast('Got it. Fewer like that.')});
+  $('#shSave')?.addEventListener('click',()=>{bumpTaste(Object.values(sh.slots),.6,0).catch(()=>{});outfitSheet(null,Object.values(sh.slots))});
+  $('#shWear')?.addEventListener('click',async e=>{const ids=Object.values(sh.slots);await guard(e.currentTarget,async()=>{bumpTaste(ids,.6,0).catch(()=>{});let oid=matchOutfit(ids);await saveDoc('plans',today(),{itemIds:ids,outfitId:oid,note:S.plans.get(today())?.note||''});toast('Logged for today')})});
   $('#shStyle')?.addEventListener('change',e=>{sh.style=e.target.value;sh.locks.clear();doShuffle();render()});
 }
 
@@ -970,7 +1003,7 @@ function bulkSheet(){
       try{
         const imageId=await addImage(r.blob),iid=newId();
         await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now()});
-        created.push(iid);URL.revokeObjectURL(pv);await paintPause();
+        created.push(iid);URL.revokeObjectURL(pv);if(g.emb)idbPut('emb','item:'+imageId,g.emb).catch(()=>{});await paintPause();
         row.innerHTML=`<span class="mini ${r.cutout?'cut':''}">${img(imageId)}</span><span class="tx"><input data-bname="${iid}" value="${esc(g.name)}" aria-label="Name"><select data-btype="${iid}" aria-label="Type">${typeOptions(g.type)}</select></span><input class="bprice" data-bprice="${iid}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$" aria-label="Price">`;
       }catch(err){console.error(err);st(err?.name==='QuotaExceededError'?'Skipped: this device is out of space':'Skipped: couldn’t save')}
     }
@@ -1430,6 +1463,22 @@ async function itemColour(i){
     const lab=medLab(px);return lab?{ie:[0],norm:1,lab}:null;   // stored in the same cache shape
   });
 }
+
+// What the app has learned from your logged looks: for each piece, how it looked in your photos
+// (the garment cut-out, kept on this device, and its colour, which syncs) and how often it was suggested but rejected.
+async function lookMemory(){
+  const worn={},rej={},cnt={};
+  for(const l of S.looks.values()){
+    for(const id of l.rej||[])rej[id]=(rej[id]||0)+1;
+    if(l.status!==LOOK_DONE||!l.learn)continue;
+    for(const[key,m]of Object.entries(l.learn)){
+      if(!m||!S.items.has(m.item))continue;
+      let emb=null;try{emb=await idbGet('emb',`seg:${l.imageId}:${m.p??0}:${key}`)}catch(_){}
+      (worn[m.item]??=[]).push({emb:emb&&emb.ie?emb:null,lab:m.lab||null});cnt[m.item]=(cnt[m.item]||0)+1;
+    }
+  }
+  return{worn,rej,cnt};
+}
 async function guessLook(lid,status){
   const l=S.looks.get(lid);const blob=l&&await idbGet('images',l.imageId);if(!blob)throw new Error('photo not on this device');
   const dl=m=>{if(/Downloading/.test(m))status(m)};
@@ -1448,6 +1497,7 @@ async function guessLook(lid,status){
   const prep=async ids=>{for(const id of ids){if(E[id]!==undefined)continue;const i=S.items.get(id);let e=null;try{e=await idbGet('emb','item:'+i.imageId)}catch(_){}
     if(!(e&&e.ie)){k++;status(`Getting to know your closet (${k} pieces so far). This only happens once.`);const b=await idbGet('images',i.imageId);if(!b){E[id]=null;continue}e=await embStore('item:'+i.imageId,()=>embedImage(b,dl));await paintPause()}
     E[id]=e;COL[id]=(await itemColour(i))?.lab||null}};
+  const MEM=await lookMemory();
   let best=null;
   for(let p=0;p<bands.length;p++){
     const band=bands[p],found=[];
@@ -1475,20 +1525,20 @@ async function guessLook(lid,status){
     status('Matching your pieces…');
     const regs=[];let total=0;
     for(const f of found){
-      const sc=f.cands.filter(([id])=>E[id]).map(([id])=>{const s=cosSim(f.emb,E[id]),de=f.lab&&COL[id]?dE(f.lab,COL[id]):30;return{id,s,de,score:(s-.7)*10-de/7}}).sort((a,b)=>b.score-a.score);
+      const sc=f.cands.filter(([id])=>E[id]).map(([id])=>{const ex=MEM.worn[id]||[];const s=Math.max(cosSim(f.emb,E[id]),...ex.filter(x=>x.emb).map(x=>cosSim(f.emb,x.emb)));const des=[f.lab&&COL[id]?dE(f.lab,COL[id]):30,...ex.filter(x=>x.lab&&f.lab).map(x=>dE(f.lab,x.lab))],de=Math.min(...des);return{id,s,de,ex:ex.length,score:(s-.7)*10-de/7+.15*Math.min(4,ex.length)-.5*Math.min(3,MEM.rej[id]||0)}}).sort((a,b)=>b.score-a.score);
       if(!sc.length)continue;
       const[b1,b2]=sc;regs.push({f,sc,b1,b2});total+=Math.max(-2,b1.score);
     }
-    if(regs.length&&(!best||total>best.total))best={total,regs};
+    if(regs.length&&(!best||total>best.total))best={total,regs,p};
   }
-  if(!best)return{pick:[],ranked:[],regions:[],v:2};
+  if(!best)return{pick:[],ranked:[],regions:[],v:3};
   const pick=[],regions=[];
   for(const{f,sc,b1,b2}of best.regs){
-    const sure=b1.de<=12&&b1.s>=.72&&(!b2||b1.score-b2.score>=.5);
+    const sure=((b1.de<=12&&b1.s>=.72)||(b1.ex&&b1.de<=15&&b1.s>=.8))&&(!b2||b1.score-b2.score>=.5);
     if(sure)pick.push(b1.id);
-    regions.push({key:f.R.key,label:f.R.label,ids:sc.slice(0,5).map(x=>x.id),sure,top:{s:+b1.s.toFixed(3),de:Math.round(b1.de),score:+b1.score.toFixed(2)}});
+    regions.push({key:f.R.key,label:f.R.label,p:best.p,lab:f.lab?f.lab.map(v=>Math.round(v*10)/10):null,ids:sc.slice(0,5).map(x=>x.id),sure,top:{s:+b1.s.toFixed(3),de:Math.round(b1.de),score:+b1.score.toFixed(2)}});
   }
-  return{pick,ranked:regions.flatMap(r=>r.ids),regions,v:2};
+  return{pick,ranked:regions.flatMap(r=>r.ids),regions,v:3};
 }
 // remove a logged look's pieces from its day (keeps anything else logged that day)
 async function unlogLook(l){
@@ -1499,6 +1549,7 @@ async function unlogLook(l){
   if(rest.length||p.note)await saveDoc('plans',l.date,{...p,itemIds:rest,outfitId:p.outfitId&&p.outfitId===l.outfitId?null:p.outfitId||null});
   else await delDoc('plans',l.date);
 }
+const learnedCount=()=>[...S.looks.values()].filter(l=>l.status===LOOK_DONE&&l.learn).length;
 function lookSheet(lid){
   const l=S.looks.get(lid);if(!l)return;
   const sel=new Set((l.itemIds||[]).filter(i=>S.items.has(i)));let outfitId=l.outfitId&&S.outfits.has(l.outfitId)?l.outfitId:null,touched=!!sel.size;
@@ -1507,7 +1558,7 @@ function lookSheet(lid){
     <div class="lookph">${img(l.imageId)}</div>
     <div class="field"><label for="lDate">Day you wore it</label><input id="lDate" type="date" value="${l.date||today()}" max="${today()}"></div>
     ${l.dateGuess?`<p class="muted" style="margin:-6px 0 0;font-size:13px">This photo didn’t say when it was taken. Check the date.</p>`:''}
-    <div class="lbl">Best guesses <small class="muted" style="text-transform:none;letter-spacing:0">(tap to add or remove)</small></div>
+    <div class="lbl">Best guesses <small class="muted" style="text-transform:none;letter-spacing:0">(tap to add or remove${learnedCount()?` · learned from ${learnedCount()} logged look${learnedCount()===1?'':'s'}`:''})</small></div>
     <div class="guess" id="guess"><p class="muted" id="gMsg" style="margin:0;font-size:13px">${S.items.size?'Finding your pieces…':'Add pieces to your closet first.'}</p></div>
     ${outs.length?`<div class="lbl">Or a saved outfit</div><div class="hscroll">${outs.map(([oid,o])=>`<button type="button" class="oc" data-oc="${oid}" aria-pressed="${outfitId===oid}">${boardHTML(o.itemIds||[],o.layout)}<small>${esc(o.name)}</small></button>`).join('')}</div>`:''}
     <div class="lbl" id="selLbl"></div>
@@ -1530,8 +1581,8 @@ function lookSheet(lid){
   if(S.items.size)(async()=>{
     const msg=t=>{const m=sh.querySelector('#gMsg');if(m)m.textContent=t};
     try{
-      let g=l.guess&&l.guess.v===2&&l.guessN===S.items.size?l.guess:null;
-      if(!g){g=await guessLook(lid,msg);const cur=S.looks.get(lid);if(cur){const v={...cur,guess:g,guessN:S.items.size};await idbPut('looks',lid,v);S.looks.set(lid,v)}}
+      let g=l.guess&&l.guess.v===3&&l.guessN===S.items.size&&l.guessL===learnedCount()?l.guess:null;
+      if(!g){g=await guessLook(lid,msg);const cur=S.looks.get(lid);if(cur){const v={...cur,guess:g,guessN:S.items.size,guessL:learnedCount()};await idbPut('looks',lid,v);S.looks.set(lid,v)}}
       if(!sh.isConnected)return;
       const tile=id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-gk="${id}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`};
       const regs=(g.regions||[]).map(r=>({...r,ids:r.ids.filter(i=>S.items.has(i))})).filter(r=>r.ids.length);
@@ -1548,7 +1599,11 @@ function lookSheet(lid){
     const cur=S.looks.get(lid)||l;await unlogLook(cur);
     const p=S.plans.get(date);
     await saveDoc('plans',date,{note:'',...(p||{}),itemIds:[...new Set([...(p?.itemIds||[]),...sel])],outfitId:outfitId||p?.outfitId||null});
-    await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false});
+    const g0=S.looks.get(lid)?.guess,learn={};
+    for(const r of g0?.regions||[]){const R=SEG_REGIONS.find(x=>x.key===r.key);if(!R)continue;
+      const m=[...sel].filter(id=>S.items.has(id)&&R.ok(S.items.get(id)));if(m.length===1)learn[r.key]={item:m[0],lab:r.lab||null,p:r.p??0}}
+    const rej=(g0?.pick||[]).filter(id=>!sel.has(id));
+    await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej});
     closeSheet();toast(`Logged on ${fmtDate(date)}`);
   }));
   const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
@@ -1572,6 +1627,7 @@ function declutterList(){
     const sim=(twins[typeOf(i)+'|'+genericName(i.colour)]||[]).filter(x=>x!==id);
     if(sim.length){const mostWorn=Math.max(...sim.map(x=>W[x]?.worn.length||0));
       why.push(`Similar to ${S.items.get(sim[0])?.name||'another piece'}${sim.length>1?` and ${sim.length-1} more`:''}`);score+=mostWorn>=wears?2:.8}
+    const sk=taste().skips?.[id]||0;if(sk>=6&&(!l||daysAgo(l)>=60)){why.push(`Passed over ${sk} times in Shuffle`);score+=1}
     const pr=Number(i.price);if(pr>0&&age>=60&&pr/(wears||1)>=40){why.push(`${money(pr/(wears||1))} per wear so far`);score+=1}
     if(score>=1.5||(score>0&&sim.length))out.push({id,why,score});
   }
