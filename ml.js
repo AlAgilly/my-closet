@@ -20,7 +20,26 @@ async function loadClip() {
   const [tok, textModel, proc, vision] = await Promise.all([T.AutoTokenizer.from_pretrained(M), T.CLIPTextModelWithProjection.from_pretrained(M), T.AutoProcessor.from_pretrained(M), T.CLIPVisionModelWithProjection.from_pretrained(M)]);
   return CLIP = { tok, textModel, proc, vision };
 }
+// Clothing segmentation (SegFormer trained on clothes): which pixel is a top, pants, skirt, dress, shoes, bag…
+let SEG = null;
+async function loadSeg() {
+  if (SEG) return SEG;
+  const T = await loadT(), M = 'Xenova/segformer_b2_clothes';
+  const [model, proc] = await Promise.all([T.AutoModelForSemanticSegmentation.from_pretrained(M), T.AutoProcessor.from_pretrained(M)]);
+  return SEG = { model, proc };
+}
 const ops = {
+  // per-pixel clothing labels at the model's output size (1/4 of 512), plus that size
+  async seg({ blob }, say) {
+    if (!SEG) say('seg-download');
+    const { model, proc } = await loadSeg();
+    say('seg-run');
+    const { pixel_values } = await proc(await T.RawImage.fromBlob(blob));
+    const { logits } = await model({ pixel_values });
+    const [, C, H, W] = logits.dims, d = logits.data, N = H * W, lab = new Uint8Array(N);
+    for (let i = 0; i < N; i++) { let b = 0, bv = -Infinity; for (let c = 0; c < C; c++) { const v = d[c * N + i]; if (v > bv) { bv = v; b = c; } } lab[i] = b; }
+    return { result: { lab, w: W, h: H }, transfer: [lab.buffer] };
+  },
   async warm({ rmbg, clip }) { if (rmbg) await loadRmbg(); if (clip) await loadClip(); return true; },
   // returns a one-byte-per-pixel mask at the photo's own size
   async rmbg({ blob }, say) {

@@ -206,7 +206,8 @@ async function repairCutout(blob){
 }
 // The models live in ml.js and run in the page (a background worker ran out of memory on iPhone).
 const ML_SAY={'rmbg-download':'Downloading the cut-out tool. This happens once and is about 45 MB, so Wi-Fi helps…','rmbg-run':'Cutting out the background…',
-  'clip-download':'Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…','clip-run':'Recognizing the item…'};
+  'clip-download':'Downloading the item recognizer. This happens once and is about 90 MB, so Wi-Fi helps…','clip-run':'Recognizing the item…',
+  'seg-download':'Downloading the outfit finder. This happens once and is about 29 MB…','seg-run':'Finding your clothes in the photo…'};
 let MLM=null;
 async function ml(op,args,status){
   if(!MLM)MLM=import('./ml.js');
@@ -1385,71 +1386,109 @@ function looksView(){
     ${list.length?`<div class="lgrid">${list.map(([id,l])=>`<button type="button" class="look" data-look="${id}" aria-label="Look from ${fmtDate(l.date)}"><div class="ph">${img(l.imageId)}${l.status===LOOK_DONE?'<span class="lbadge" aria-hidden="true">✓</span>':''}</div><small>${fmtDate(l.date)}${l.status===LOOK_DONE&&l.itemIds?.length?` · ${l.itemIds.length} piece${l.itemIds.length===1?'':'s'}`:''}</small></button>`).join('')}</div>`
       :`<p class="muted">${f==='todo'?'All caught up. Every photo has been checked.':'Nothing here yet.'}</p>`}`;
 }
-// --- best guess of the pieces in a look (on-device CLIP image similarity) ---
-const cosSim=(a,b)=>{let d=0;for(let k=0;k<a.ie.length;k++)d+=a.ie[k]*b.ie[k];return d/(a.norm*b.norm)};
-async function cropBlob(blob,y0,y1){
-  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
-  const w=im.naturalWidth,h=im.naturalHeight,c=document.createElement('canvas');c.width=w;c.height=Math.max(1,Math.round(h*(y1-y0)));
-  c.getContext('2d').drawImage(im,0,h*y0,w,c.height,0,0,w,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
-}
-const LOOK_CROPS={full:[0,1],upper:[.08,.6],lower:[.42,.95],feet:[.72,1]};
-// where each kind of piece usually sits in a photo of a person: [x0,y0,x1,y1] as fractions of the whole photo
-const LOOK_PATCH={upper:[.36,.25,.64,.45],lower:[.38,.58,.62,.8],full:[.36,.3,.64,.7],feet:[.3,.88,.7,.98]};
-const GROUP_PATCH={Tops:'upper',Outerwear:'upper','One-pieces':'full',Bottoms:'lower',Shoes:'feet'};
-function toLab(r,g,b){const f=c=>{c/=255;return c>.04045?((c+.055)/1.055)**2.4:c/12.92};const R=f(r),G=f(g),B=f(b);
-  const x=(R*.4124+G*.3576+B*.1805)/.95047,y=R*.2126+G*.7152+B*.0722,z=(R*.0193+G*.1192+B*.9505)/1.08883,h=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;
-  return[116*h(y)-16,500*(h(x)-h(y)),200*(h(y)-h(z))]}
-async function patchColours(blob){
-  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);const c=document.createElement('canvas');c.width=60;c.height=80;
-  const g=c.getContext('2d');g.drawImage(im,0,0,60,80);const out={};
-  for(const[k,[x0,y0,x1,y1]]of Object.entries(LOOK_PATCH)){
-    const d=g.getImageData(Math.round(x0*60),Math.round(y0*80),Math.max(1,Math.round((x1-x0)*60)),Math.max(1,Math.round((y1-y0)*80))).data,ch=[[],[],[]];
-    for(let i=0;i<d.length;i+=4)for(let j=0;j<3;j++)ch[j].push(d[i+j]);
-    out[k]=toLab(...ch.map(a=>a.sort((p,q)=>p-q)[a.length>>1]));
-  }
-  return out;
-}
-const GROUP_CROPS={Tops:['full','upper'],Outerwear:['full','upper'],'One-pieces':['full'],Bottoms:['lower','full'],Shoes:['feet'],Bags:['full'],Accessories:['full','upper'],Other:['full']};
 async function embStore(key,make){
   let e=null;try{e=await idbGet('emb',key)}catch(_){}
   if(e&&e.ie)return e;e=await make();if(e)try{await idbPut('emb',key,e)}catch(_){}
   return e;
 }
+// --- best guess of the pieces in a look ---
+// 1) a clothing-segmentation model finds each garment you're wearing (top, pants, skirt, dress, shoes, bag…)
+// 2) each garment is cut out on white and compared with the pieces of that kind in your closet, by look (CLIP) and by colour
+// 3) a piece is pre-ticked only when it's a clear match; otherwise it's just suggested
+const cosSim=(a,b)=>{let d=0;for(let k=0;k<a.ie.length;k++)d+=a.ie[k]*b.ie[k];return d/(a.norm*b.norm)};
+function toLab(r,g,b){const f=c=>{c/=255;return c>.04045?((c+.055)/1.055)**2.4:c/12.92};const R=f(r),G=f(g),B=f(b);
+  const x=(R*.4124+G*.3576+B*.1805)/.95047,y=R*.2126+G*.7152+B*.0722,z=(R*.0193+G*.1192+B*.9505)/1.08883,h=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;
+  return[116*h(y)-16,500*(h(x)-h(y)),200*(h(y)-h(z))]}
+const medLab=px=>{if(!px.length)return null;const L=px.map(p=>toLab(p[0],p[1],p[2]));return[0,1,2].map(k=>L.map(v=>v[k]).sort((a,b)=>a-b)[L.length>>1])};
+const dE=(a,b)=>Math.hypot((a[0]-b[0])*.5,a[1]-b[1],a[2]-b[2]);
+const isT=(...t)=>i=>t.includes(typeOf(i));
+const inG=(...g)=>i=>g.includes(groupOf(i));
+const SEG_REGIONS=[
+  {key:'top',label:'Top',cls:[4],min:.012,ok:i=>inG('Tops','Outerwear')(i)},
+  {key:'dress',label:'Dress',cls:[7],min:.02,ok:inG('One-pieces')},
+  {key:'pants',label:'Bottoms',cls:[6],min:.01,ok:i=>(inG('Bottoms')(i)&&!isT('Skirts')(i))||isT('Activewear','Jumpsuits')(i)},
+  {key:'skirt',label:'Skirt',cls:[5],min:.008,ok:isT('Skirts','Shorts')},
+  {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:inG('Shoes'),all:true},
+  {key:'bag',label:'Bag',cls:[16],min:.003,ok:inG('Bags')},
+  {key:'hat',label:'Hat',cls:[1],min:.003,ok:isT('Hats')},
+  {key:'glasses',label:'Glasses',cls:[3],min:.001,ok:isT('Glasses')}];
+// connected components of the pixels where keep(i) is true; returns arrays of indices, biggest first
+function components(w,h,keep){
+  const seen=new Uint8Array(w*h),out=[],q=new Int32Array(w*h);
+  for(let s=0;s<w*h;s++){if(seen[s]||!keep(s))continue;let qh=0,qt=0;q[qt++]=s;seen[s]=1;
+    while(qh<qt){const i=q[qh++],x=i%w;for(const j of[x>0?i-1:-1,x<w-1?i+1:-1,i-w,i+w])if(j>=0&&j<w*h&&!seen[j]&&keep(j)){seen[j]=1;q[qt++]=j}}
+    out.push(Array.from(q.subarray(0,qt)))}
+  return out.sort((a,b)=>b.length-a.length);
+}
+async function itemColour(i){
+  return embStore('col:'+i.imageId,async()=>{
+    const b=await idbGet('images',i.imageId);if(!b)return null;
+    const im=await loadImage(URL.createObjectURL(b));URL.revokeObjectURL(im.src);const c=document.createElement('canvas'),s=Math.min(1,160/Math.max(im.naturalWidth,im.naturalHeight));
+    c.width=Math.max(1,Math.round(im.naturalWidth*s));c.height=Math.max(1,Math.round(im.naturalHeight*s));const g=c.getContext('2d');g.drawImage(im,0,0,c.width,c.height);
+    const d=g.getImageData(0,0,c.width,c.height).data,px=[],cut=!!i.cutout;
+    for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){const k=(y*c.width+x)*4;if(cut?d[k+3]<200:(x<c.width*.3||x>c.width*.7||y<c.height*.25||y>c.height*.75))continue;px.push([d[k],d[k+1],d[k+2]])}
+    const lab=medLab(px);return lab?{ie:[0],norm:1,lab}:null;   // stored in the same cache shape
+  });
+}
 async function guessLook(lid,status){
   const l=S.looks.get(lid);const blob=l&&await idbGet('images',l.imageId);if(!blob)throw new Error('photo not on this device');
   const dl=m=>{if(/Downloading/.test(m))status(m)};
+  // where are the clothes?
+  status('Finding your clothes in the photo…');
+  const{lab,w,h}=await ml('seg',{blob},dl);
+  // the people: each sizeable face gives an area below it; clothes far to either side belong to someone else.
+  // We try each person and keep the one whose clothes match your closet best.
+  const faces=components(w,h,i=>lab[i]===11).filter((f,n,arr)=>f.length>=w*h*.002&&f.length>=arr[0].length*.25).slice(0,3);
+  const bands=faces.length?faces.map(f=>{let x0=w,x1=0,y0=h;for(const i of f){const x=i%w,y=(i/w)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y}
+    const cx=(x0+x1)/2,fw=Math.max(4,x1-x0+1);return i=>{const x=i%w,y=(i/w)|0;return Math.abs(x-cx)<=fw*2.2&&y>=y0-fw*.5}}):[()=>true];
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+  const W=im.naturalWidth,H=im.naturalHeight,sx=W/w,sy=H/h;
   const its=[...S.items.entries()].filter(([,i])=>i.imageId);
-  const E={};const need=[];
-  for(const[id,i]of its){let e=null;try{e=await idbGet('emb','item:'+i.imageId)}catch(_){}if(e&&e.ie)E[id]=e;else need.push([id,i])}
-  for(let k=0;k<need.length;k++){const[id,i]=need[k];
-    status(`Getting to know your closet (${k+1} of ${need.length}). This only happens once.`);
-    const b=await idbGet('images',i.imageId);if(!b)continue;
-    E[id]=await embStore('item:'+i.imageId,()=>embedImage(b,dl));await paintPause();
+  const E={},COL={};let k=0;
+  const prep=async ids=>{for(const id of ids){if(E[id]!==undefined)continue;const i=S.items.get(id);let e=null;try{e=await idbGet('emb','item:'+i.imageId)}catch(_){}
+    if(!(e&&e.ie)){k++;status(`Getting to know your closet (${k} pieces so far). This only happens once.`);const b=await idbGet('images',i.imageId);if(!b){E[id]=null;continue}e=await embStore('item:'+i.imageId,()=>embedImage(b,dl));await paintPause()}
+    E[id]=e;COL[id]=(await itemColour(i))?.lab||null}};
+  let best=null;
+  for(let p=0;p<bands.length;p++){
+    const band=bands[p],found=[];
+    for(const R of SEG_REGIONS){
+      const comps=components(w,h,i=>R.cls.includes(lab[i])&&band(i));if(!comps.length)continue;
+      const px=R.all?comps.flat():comps[0];if(px.length<w*h*R.min)continue;
+      const cands=its.filter(([,i])=>R.ok(i));if(!cands.length)continue;
+      const set=new Uint8Array(w*h);let bx0=w,bx1=0,by0=h,by1=0;for(const i of px){set[i]=1;const x=i%w,y=(i/w)|0;if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y}
+      const cw=Math.round((bx1-bx0+1)*sx),ch=Math.round((by1-by0+1)*sy),kk=Math.min(1,360/Math.max(cw,ch));
+      const c=document.createElement('canvas');c.width=Math.max(8,Math.round(cw*kk));c.height=Math.max(8,Math.round(ch*kk));const g=c.getContext('2d');
+      g.drawImage(im,bx0*sx,by0*sy,cw,ch,0,0,c.width,c.height);
+      const d=g.getImageData(0,0,c.width,c.height),pix=[];
+      for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){
+        const lx=bx0+Math.floor(x/(c.width/(bx1-bx0+1))),ly=by0+Math.floor(y/(c.height/(by1-by0+1))),li=ly*w+lx,o=(y*c.width+x)*4;
+        if(!set[li]){d.data[o]=d.data[o+1]=d.data[o+2]=255;continue}
+        if(set[li-1]&&set[li+1]&&set[li-w]&&set[li+w]&&((x+y)&1))pix.push([d.data[o],d.data[o+1],d.data[o+2]]);
+      }
+      g.putImageData(d,0,0);
+      const crop=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
+      const emb=await embStore(`seg:${l.imageId}:${p}:${R.key}`,()=>embedImage(crop,dl));
+      found.push({R,emb,lab:medLab(pix),cands});
+    }
+    if(!found.length)continue;
+    await prep([...new Set(found.flatMap(f=>f.cands.map(([id])=>id)))]);
+    status('Matching your pieces…');
+    const regs=[];let total=0;
+    for(const f of found){
+      const sc=f.cands.filter(([id])=>E[id]).map(([id])=>{const s=cosSim(f.emb,E[id]),de=f.lab&&COL[id]?dE(f.lab,COL[id]):30;return{id,s,de,score:(s-.7)*10-de/7}}).sort((a,b)=>b.score-a.score);
+      if(!sc.length)continue;
+      const[b1,b2]=sc;regs.push({f,sc,b1,b2});total+=Math.max(-2,b1.score);
+    }
+    if(regs.length&&(!best||total>best.total))best={total,regs};
   }
-  status('Looking at the photo…');
-  const L={};for(const[k,[a,b]]of Object.entries(LOOK_CROPS))L[k]=await embStore(`look:${l.imageId}:${k}`,async()=>embedImage(k==='full'?blob:await cropBlob(blob,a,b),dl));
-  // similarity of every piece to each part of the photo, standardised across the whole closet per part,
-  // so a category with only one or two pieces isn't over- or under-rated
-  const ids=its.map(([id])=>id).filter(id=>E[id]),Z={};
-  for(const k of Object.keys(LOOK_CROPS)){
-    const v=ids.map(id=>cosSim(L[k],E[id])),m=v.reduce((a,b)=>a+b,0)/v.length,sd=Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/v.length)||1;
-    ids.forEach((id,n)=>{(Z[id]??={})[k]=(v[n]-m)/sd});
+  if(!best)return{pick:[],ranked:[],regions:[],v:2};
+  const pick=[],regions=[];
+  for(const{f,sc,b1,b2}of best.regs){
+    const sure=b1.de<=12&&b1.s>=.72&&(!b2||b1.score-b2.score>=.5);
+    if(sure)pick.push(b1.id);
+    regions.push({key:f.R.key,label:f.R.label,ids:sc.slice(0,5).map(x=>x.id),sure,top:{s:+b1.s.toFixed(3),de:Math.round(b1.de),score:+b1.score.toFixed(2)}});
   }
-  // colour check: the piece's saved colour against the colour where that kind of piece sits in the photo
-  let PC=null;try{PC=await patchColours(blob)}catch(_){}
-  if(PC){
-    const dist={};for(const id of ids){const it=S.items.get(id),p=GROUP_PATCH[groupOf(it)],hex=it.colourHex||GEN_HEX[genericName(it.colour)];
-      if(p&&hex){const a=toLab(...hexToRgb(hex)),b=PC[p];dist[id]=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])}}
-    const v=Object.values(dist);if(v.length>2){const m=v.reduce((a,b)=>a+b,0)/v.length,sd=Math.sqrt(v.reduce((a,b)=>a+(b-m)**2,0)/v.length)||1;
-      for(const id in dist)Z[id].col=(m-dist[id])/sd}
-  }
-  const ranked=[],best={};
-  for(const id of ids){const g=groupOf(S.items.get(id));const z=Math.max(...(GROUP_CROPS[g]||['full']).map(k=>Z[id][k]))+.9*(Z[id].col||0);const r={id,g,z,s:z};ranked.push(r);if(!best[g]||z>best[g].z)best[g]=r}
-  ranked.sort((a,b)=>b.z-a.z||b.s-a.s);
-  const pick=[],T=best.Tops,B=best.Bottoms,O=best['One-pieces'];
-  if(O&&(!T||!B||O.z>(T.z+B.z)/2))pick.push(O.id);else{if(T)pick.push(T.id);if(B)pick.push(B.id)}
-  for(const[g,z]of[['Outerwear',1.3],['Shoes',1.3],['Bags',1.6]])if(best[g]&&best[g].z>=z)pick.push(best[g].id);
-  return{pick,ranked:ranked.slice(0,12).map(r=>r.id)};
+  return{pick,ranked:regions.flatMap(r=>r.ids),regions,v:2};
 }
 // remove a logged look's pieces from its day (keeps anything else logged that day)
 async function unlogLook(l){
@@ -1491,11 +1530,13 @@ function lookSheet(lid){
   if(S.items.size)(async()=>{
     const msg=t=>{const m=sh.querySelector('#gMsg');if(m)m.textContent=t};
     try{
-      let g=l.guess&&l.guessN===S.items.size?l.guess:null;
+      let g=l.guess&&l.guess.v===2&&l.guessN===S.items.size?l.guess:null;
       if(!g){g=await guessLook(lid,msg);const cur=S.looks.get(lid);if(cur){const v={...cur,guess:g,guessN:S.items.size};await idbPut('looks',lid,v);S.looks.set(lid,v)}}
       if(!sh.isConnected)return;
-      const ids=[...new Set([...g.pick,...g.ranked])].filter(i=>S.items.has(i)).slice(0,12);
-      gbox.innerHTML=ids.map(id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-gk="${id}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`}).join('');
+      const tile=id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-gk="${id}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`};
+      const regs=(g.regions||[]).map(r=>({...r,ids:r.ids.filter(i=>S.items.has(i))})).filter(r=>r.ids.length);
+      gbox.innerHTML=regs.length?regs.map(r=>`<div class="gsec"><small>${esc(r.label)}${r.sure?'':' · not sure'}</small><div class="grow">${r.ids.map(tile).join('')}</div></div>`).join('')
+        :`<p class="muted" style="margin:0;font-size:13px">Couldn’t spot clothes from your closet clearly in this photo. Pick the pieces below.</p>`;
       if(!touched&&l.status!==LOOK_DONE){g.pick.filter(i=>S.items.has(i)).forEach(i=>sel.add(i));sync_()}
     }catch(e){console.error(e);msg('Couldn’t make a guess for this photo. Pick the pieces below.')}
   })();
