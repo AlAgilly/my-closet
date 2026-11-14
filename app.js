@@ -2167,17 +2167,38 @@ function autoOutfitName(ids){
   const n=(main.length?main:it.slice(0,2)).map(i=>i.name||'Piece');
   return n.length>1?`${n[0]} & ${n[1].charAt(0).toLowerCase()+n[1].slice(1)}`:n[0]||'Outfit';
 }
+// the pieces that make an outfit what it is (top + bottom, or a full-length piece); shoes, jackets and bags can vary
+const coreKey=ids=>ids.filter(i=>['Tops','Bottoms','Full length'].includes(groupOf(S.items.get(i)))).sort().join('|');
+// a saved outfit that is this look: same pieces, or the same core with one set inside the other (a photo that misses the shoes)
+function outfitForLook(ids){
+  const exact=matchOutfit(ids);if(exact)return exact;
+  const ck=coreKey(ids);if(!ck)return null;let best=null,bo=0;
+  for(const[oid,o]of S.outfits){const oi=(o.itemIds||[]).filter(i=>S.items.has(i));if(coreKey(oi)!==ck)continue;
+    const inO=ids.every(i=>oi.includes(i)),inL=oi.every(i=>ids.includes(i));if(!inO&&!inL)continue;
+    const ov=ids.filter(i=>oi.includes(i)).length;if(ov>bo){bo=ov;best=oid}}
+  return best;
+}
+let autoBusy=false;
 async function autoOutfits(){
-  const groups={};
-  for(const[lid,l]of S.looks){if(l.status!==LOOK_DONE)continue;const ids=[...new Set((l.itemIds||[]).filter(i=>S.items.has(i)))];if(ids.length<2)continue;(groups[ids.sort().join('|')]??=[]).push(lid)}
-  const made=[];
-  for(const[k,lids]of Object.entries(groups)){
-    if(lids.length<2)continue;const ids=k.split('|');let oid=matchOutfit(ids);
-    if(!oid){oid=newId();await saveDoc('outfits',oid,{name:autoOutfitName(ids),itemIds:ids,layout:autoLayout(ids),auto:true,createdAt:Date.now()});made.push(oid)}
-    for(const lid of lids){const l=S.looks.get(lid);if(!l||l.outfitId)continue;await saveDoc('looks',lid,{...l,outfitId:oid});
-      const p=S.plans.get(l.date);if(p&&!p.outfitId)await saveDoc('plans',l.date,{...p,outfitId:oid})}
-  }
-  return made;
+  if(autoBusy)return[];autoBusy=true;
+  try{
+    const link=async(lid,oid)=>{const l=S.looks.get(lid);if(!l||l.outfitId)return;await saveDoc('looks',lid,{...l,outfitId:oid});
+      const p=S.plans.get(l.date);if(p&&!p.outfitId)await saveDoc('plans',l.date,{...p,outfitId:oid})};
+    // looks you already tied to an outfit are left alone; others that match a saved outfit get linked to it
+    const groups={};
+    for(const[lid,l]of S.looks){if(l.status!==LOOK_DONE||l.outfitId)continue;const ids=[...new Set((l.itemIds||[]).filter(i=>S.items.has(i)))];if(ids.length<2)continue;
+      const oid=outfitForLook(ids);if(oid){await link(lid,oid);continue}
+      (groups[ids.sort().join('|')]??=[]).push(lid)}
+    // a new outfit only when the same pieces were worn on two or more different days (several photos from one day count once)
+    const made=[];
+    for(const[k,lids]of Object.entries(groups)){
+      const days=new Set(lids.map(lid=>S.looks.get(lid)?.date).filter(Boolean));if(days.size<2)continue;
+      const ids=k.split('|');let oid=outfitForLook(ids);
+      if(!oid){oid=newId();await saveDoc('outfits',oid,{name:autoOutfitName(ids),itemIds:ids,layout:autoLayout(ids),auto:true,createdAt:Date.now()});made.push(oid)}
+      for(const lid of lids)await link(lid,oid);
+    }
+    return made;
+  }finally{autoBusy=false}
 }
 
 
