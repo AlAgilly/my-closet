@@ -1102,7 +1102,7 @@ document.addEventListener('click',e=>{
     if(k==='type'){S.group=GROUP_OF[v]||[...S.items.values()].find(i=>typeOf(i)===v)?.group||'Other';S.type=v}else if(k==='colour'&&v!=='no colour')S.f.colours=[v];render();scrollTo(0,0);return}
 
   const it=e.target.closest('[data-item]');if(it){itemSheet(it.dataset.item);return}
-  const of=e.target.closest('[data-outfit]');if(of){outfitSheet(of.dataset.outfit);return}
+  const of=e.target.closest('[data-outfit]');if(of){outfitView(of.dataset.outfit);return}
   const dy=e.target.closest('[data-day]');if(dy){daySheet(dy.dataset.day);return}
   const mn=e.target.closest('[data-mon]');if(mn){S.month=new Date(S.month.getFullYear(),S.month.getMonth()+Number(mn.dataset.mon),1);render();return}
 });
@@ -1842,6 +1842,7 @@ function lookSheet(lid){
     const rej=(g0?.pick||[]).filter(id=>!sel.has(id));
     await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej});
     closeSheet();toast(`Logged on ${fmtDate(date)}`);
+    try{const made=await autoOutfits();if(made.length)toast(`You’ve worn this more than once, so it’s saved as an outfit: ${S.outfits.get(made[0])?.name||''}`)}catch(e){console.warn('auto outfits',e)}
   }));
   const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
     const cur=S.looks.get(lid);await unlogLook(cur);await saveDoc('looks',lid,{...cur,status:LOOK_SKIP,itemIds:[],outfitId:null});closeSheet();toast('Skipped')}));
@@ -2106,6 +2107,56 @@ function sortSheet(){
   })();
 }
 
+
+/* ---------- a saved outfit: view first (with the looks you wore it in); Edit opens the editor ---------- */
+// logged looks with this outfit: linked to it, or wearing every one of its pieces
+function outfitLooks(oid){
+  const o=S.outfits.get(oid);if(!o)return[];const ids=(o.itemIds||[]).filter(i=>S.items.has(i));
+  return[...S.looks.entries()].filter(([,l])=>l.status===LOOK_DONE&&(l.outfitId===oid||(ids.length>=2&&ids.every(i=>(l.itemIds||[]).includes(i)))))
+    .sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||''));
+}
+function outfitView(id){
+  const o=S.outfits.get(id);if(!o)return;
+  const r=wear().outfits[id],l=last(r),lks=outfitLooks(id),items=(o.itemIds||[]).filter(i=>S.items.has(i));
+  const worn=new Set([...(r?.worn||[]),...lks.map(([,x])=>x.date).filter(d=>d&&d<=today())]);
+  const sh=openSheet(`${head(esc(o.name||'Outfit'))}
+    <div class="stats"><div class="stat"><b>${l?shortAgo(l):'Never'}</b><small>Last worn</small></div><div class="stat"><b>${worn.size}×</b><small>Worn</small></div><div class="stat"><b>${r?.next?parse(r.next).toLocaleDateString('en-CA',{month:'short',day:'numeric'}):'—'}</b><small>Next planned</small></div></div>
+    ${boardHTML(items,o.layout,'big')}
+    <div class="lbl">Pieces</div>
+    <div class="hscroll">${items.map(i=>{const it=S.items.get(i);return `<button type="button" class="gk" data-vitem="${i}"><div class="${phCls(it)}">${thumb(it)}</div><small>${esc(it.name)}</small></button>`}).join('')}</div>
+    <div class="lbl">Worn in ${lks.length} look${lks.length===1?'':'s'}</div>
+    ${lks.length?`<div class="lgrid">${lks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph">${img(x.imageId)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
+      :`<p class="muted" style="margin:0;font-size:13px">No logged looks with this outfit yet. Log photos of you in the Looks tab and they’ll show up here.</p>`}
+    <div class="btns"><button class="btn primary" type="button" id="oEdit">Edit</button><button class="btn" type="button" id="oWear">Wore it today</button></div>`);
+  sh.addEventListener('click',e=>{
+    const lk=e.target.closest('[data-vlook]');if(lk){closeSheet();lookSheet(lk.dataset.vlook);return}
+    const it=e.target.closest('[data-vitem]');if(it){closeSheet();itemSheet(it.dataset.vitem);return}
+    if(e.target.closest('#oEdit')){closeSheet();outfitSheet(id);return}
+  });
+  const w=sh.querySelector('#oWear');w.addEventListener('click',()=>guard(w,async()=>{const t=today(),p=S.plans.get(t);
+    await saveDoc('plans',t,{note:'',...(p||{}),itemIds:[...new Set([...(p?.itemIds||[]),...items])],outfitId:id});closeSheet();toast('Logged for today')}));
+}
+/* ---------- outfits you keep wearing are saved for you ----------
+   Two or more logged looks with exactly the same pieces become a saved outfit, and those looks (and their days) are linked to it. */
+function autoOutfitName(ids){
+  const it=ids.map(i=>S.items.get(i)).filter(Boolean),order=['Full length','Tops','Bottoms','Jackets'];
+  const main=it.filter(i=>order.includes(groupOf(i))).sort((a,b)=>order.indexOf(groupOf(a))-order.indexOf(groupOf(b))).slice(0,2);
+  const n=(main.length?main:it.slice(0,2)).map(i=>i.name||'Piece');
+  return n.length>1?`${n[0]} & ${n[1].charAt(0).toLowerCase()+n[1].slice(1)}`:n[0]||'Outfit';
+}
+async function autoOutfits(){
+  const groups={};
+  for(const[lid,l]of S.looks){if(l.status!==LOOK_DONE)continue;const ids=[...new Set((l.itemIds||[]).filter(i=>S.items.has(i)))];if(ids.length<2)continue;(groups[ids.sort().join('|')]??=[]).push(lid)}
+  const made=[];
+  for(const[k,lids]of Object.entries(groups)){
+    if(lids.length<2)continue;const ids=k.split('|');let oid=matchOutfit(ids);
+    if(!oid){oid=newId();await saveDoc('outfits',oid,{name:autoOutfitName(ids),itemIds:ids,layout:autoLayout(ids),auto:true,createdAt:Date.now()});made.push(oid)}
+    for(const lid of lids){const l=S.looks.get(lid);if(!l||l.outfitId)continue;await saveDoc('looks',lid,{...l,outfitId:oid});
+      const p=S.plans.get(l.date);if(p&&!p.outfitId)await saveDoc('plans',l.date,{...p,outfitId:oid})}
+  }
+  return made;
+}
+
 /* ---------- boot ---------- */
 render();
 (async()=>{
@@ -2138,5 +2189,6 @@ render();
   if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});
   if(GH.cfg())sync();
   if(S.ready)setTimeout(()=>refitCutouts().catch(e=>console.warn(e)),1500);
+  if(S.ready)setTimeout(()=>autoOutfits().catch(e=>console.warn('auto outfits',e)),2500);
 })();
 if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
