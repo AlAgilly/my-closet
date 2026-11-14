@@ -6,9 +6,10 @@ const GROUPS=[
   ['Bottoms',['Jeans','Pants','Skirts','Leggings','Shorts']],
   ['Full length',['Dresses','Overalls','Rompers','Jumpsuits']],
   ['Jackets',['Cardigans','Jackets','Coats','Vests','Blazers']],
-  ['Accessories',['Footwear','Heels','Bags','Jewelry','Hats','Hair accessories','Glasses','Belts','Bras','Underwear','Tights']],
+  ['Shoes',['Footwear','Heels']],
+  ['Accessories',['Bags','Jewelry','Hats','Hair accessories','Glasses','Belts','Bras','Underwear','Tights']],
   ['Other',['Activewear','Other']]];
-const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Accessories'];
+const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Shoes','Accessories'];
 const SHOE_T=['Footwear','Heels'],UNDER_T=['Bras','Underwear','Tights'],HEAD_T=['Hats','Hair accessories'];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
@@ -607,10 +608,10 @@ function closetChips(cur,attr,extra=''){
 }
 function closetView(){
   if(!S.ready)return '';
-  const untagged=[...S.items.values()].filter(i=>inCloset(i,S.closet)&&!isTagged(i)).length;
-  const top=`<div class="actpair${untagged?'':' one'}"><button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Upload items</button>`
-    +(untagged?`<button class="bulkbtn" type="button" id="qtBtn" aria-label="Organize: ${untagged} piece${untagged===1?'':'s'} need seasons and dressiness"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Organize ${untagged}</button>`:'')+`</div>`
-    +(ls.get('closet.sorted3')||![...S.items.values()].some(i=>['Blouses','Sweaters','Hoodies'].includes(i.type))?'':`<button class="bulkbtn" type="button" id="sortBtn">Sort tops into Long sleeves, Short sleeves &amp; Crewnecks</button>`);
+  const untagged=[...S.items.values()].filter(i=>inCloset(i,S.closet)&&!isTagged(i)).length,sortDue=needsSortCheck();
+  const top=`<div class="actpair${untagged||sortDue?'':' one'}"><button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Upload items</button>`
+    +(untagged||sortDue?`<button class="bulkbtn" type="button" id="qtBtn" aria-label="Organize${untagged?`: ${untagged} piece${untagged===1?'':'s'} need seasons and dressiness`:''}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Organize${untagged?' '+untagged:''}</button>`:'')+`</div>`
+    ;
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
   if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
   return top+`
@@ -622,7 +623,7 @@ function closetView(){
 const closetItems=()=>[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
 function groupRow(all){
   const cnt={};for(const[,i]of all){const g=groupOf(i);cnt[g]=(cnt[g]||0)+1}
-  const show=[...MAIN_GROUPS,...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
+  const show=[...MAIN_GROUPS.filter(g=>cnt[g]),...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
   if(S.group!=='All'&&!show.includes(S.group))S.group='All';
   return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g,cnt[g]||0,'group')).join('');
 }
@@ -630,7 +631,7 @@ const GROUP_OF_GROUP=g=>GROUPS.some(x=>x[0]===g);
 function subcatsHTML(all){
   if(S.group==='All')return '';
   const cnt={};for(const[,i]of all)if(groupOf(i)===S.group){const t=typeOf(i);cnt[t]=(cnt[t]||0)+1}
-  const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))];
+  const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))].filter(t=>cnt[t]);
   if(S.type!=='All'&&!types.includes(S.type))S.type='All';
   const n=Object.values(cnt).reduce((a,b)=>a+b,0);
   // small icon buttons for the types in this category (all shown, no sideways scrolling)
@@ -733,7 +734,7 @@ const ICON={
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Hair accessories':'hair','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Accessories:'hats',Other:'other'};
+const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Shoes:'heels',Accessories:'hats',Other:'other'};
 function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
@@ -1081,8 +1082,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#manageClosets')){closetsSheet();return}
   if(e.target.closest('#closetTitle')){closetSwitcher();return}
   if(e.target.closest('#bulkBtn')){bulkSheet();return}
-  if(e.target.closest('#qtBtn')){quickTagSheet();return}
-  if(e.target.closest('#sortBtn')){sortSheet();return}
+  if(e.target.closest('#qtBtn')){needsSortCheck()?sortSheet():quickTagSheet();return}
   const lok=e.target.closest('[data-look]');if(lok){lookSheet(lok.dataset.look);return}
   const lf=e.target.closest('[data-lookf]');if(lf){S.lookFilter=lf.dataset.lookf;render();return}
   const dc=e.target.closest('[data-dc]');if(dc){dc.dataset.dc==='start'?declutterSheet():leavingSheet();return}
@@ -2044,8 +2044,9 @@ function quickTagSheet(){
     while(n<queue.length&&(!S.items.has(queue[n][0])||isTagged(S.items.get(queue[n][0]))))n++;
     if(n>=queue.length){box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>All tagged</h2><p>${done?`You tagged ${done} piece${done===1?'':'s'}. `:''}Shuffle now picks for the season and the occasion.</p></div><div class="btns"><button class="btn primary" type="button" data-qtclose>Done</button></div>`;return}
     const[id,i]=queue[n],st={seasons:new Set(guessSeasons(i)),dress:guessDress(i)};
-    box.innerHTML=`<p class="muted" style="margin:0;font-size:13px">${n+1} of ${queue.length} · best guesses are filled in, fix anything that’s off</p>
+    box.innerHTML=`<p class="muted" style="margin:0;font-size:13px"><b>Seasons &amp; dressiness</b> · ${n+1} of ${queue.length} · best guesses are filled in, fix anything that’s off</p>
       <div class="dcph ${phCls(i)}">${thumb(i)}</div><h3 style="margin:0;text-align:center">${esc(i.name||'Piece')}</h3>
+      <div class="field"><label for="qtType">Category</label><select id="qtType">${typeOptions(typeOf(i))}</select></div>
       ${tagsHTML({seasons:[...st.seasons],dress:st.dress})}
       <div class="dcbtns"><button class="btn primary" type="button" data-qt="save">Save &amp; next</button><button class="btn" type="button" data-qt="skip">Skip</button></div>`;
     wireTags(box,st);box._st=st;
@@ -2054,7 +2055,7 @@ function quickTagSheet(){
     if(e.target.closest('[data-qtclose]')){closeSheet();return}
     const b=e.target.closest('[data-qt]');if(!b||b.disabled)return;
     if(b.dataset.qt==='save'){const[id]=queue[n],it=S.items.get(id),st=box._st;b.disabled=true;
-      try{await saveDoc('items',id,{...it,seasons:SEASONS.map(s=>s[0]).filter(k=>st.seasons.has(k)),dress:st.dress});done++}catch(err){toast('Couldn’t save. Please try again.');b.disabled=false;return}}
+      const ty=box.querySelector('#qtType')?.value||it.type;try{await saveDoc('items',id,{...it,type:ty,group:GROUP_OF[ty]||it.group,seasons:SEASONS.map(s=>s[0]).filter(k=>st.seasons.has(k)),dress:st.dress});done++}catch(err){toast('Couldn’t save. Please try again.');b.disabled=false;return}}
     n++;show();
   });
   show();
@@ -2081,17 +2082,21 @@ async function sortSuggestions(status){
   }
   return out;
 }
+const needsSortCheck=()=>!ls.get('closet.sorted3')&&[...S.items.values()].some(i=>inCloset(i,S.closet)&&['Blouses','Sweaters','Hoodies'].includes(i.type));
 function sortSheet(){
-  const sh=openSheet(`${head('Sort into the new categories')}<p class="muted" style="margin:0;font-size:14px">Long sleeves, Short sleeves and Crewnecks are new. Here are the pieces that look like they belong there. Move the ones that are right.</p><div id="srt" class="list"><p class="muted" id="srtMsg" style="margin:0">Getting ready…</p></div>`);
+  const sh=openSheet(`${head('Organize')}<p class="muted" style="margin:0;font-size:14px"><b>Step 1 · Check categories.</b> These pieces look like they belong in a different category. Move the ones that are right.</p><div id="srt" class="list"><p class="muted" id="srtMsg" style="margin:0">Getting ready…</p></div><div class="btns"><button class="btn primary" type="button" id="srtNext"></button></div>`);
+  const nextBtn=sh.querySelector('#srtNext'),hasTags=()=>[...S.items.values()].some(i=>inCloset(i,S.closet)&&!isTagged(i));
+  const setNext=()=>{nextBtn.textContent=hasTags()?'Next: seasons & dressiness':'Done'};setNext();
+  nextBtn.addEventListener('click',()=>{ls.set('closet.sorted3','1');closeSheet();if(hasTags())quickTagSheet();else render()});
   const box=sh.querySelector('#srt');
   (async()=>{
     let sug=[];try{sug=await sortSuggestions(m=>{const x=sh.querySelector('#srtMsg');if(x)x.textContent=m})}catch(e){console.error(e);box.innerHTML='<p class="muted">Couldn’t look at your tops right now. Try again later.</p>';return}
-    ls.set('closet.sorted3','1');render();
+    ls.set('closet.sorted3','1');
     if(!sh.isConnected)return;
     const paint=()=>{const left=sug.filter(x=>!x.done);
       box.innerHTML=left.length?left.map(x=>{const i=S.items.get(x.id);return `<div class="li lvrow"><span class="mini ${i.cutout&&hasImg(i)?'cut':''}">${thumb(i)}</span><span class="tx"><b>${esc(i.name)}</b><small>${esc(i.type)} → <b>${esc(x.to)}</b></small></span>
         <span class="lvb"><button class="btn sm primary" type="button" data-mv="${x.id}">Move</button><button class="linkbtn" type="button" data-keep="${x.id}">Keep as is</button></span></div>`}).join('')+(left.length>1?`<button class="btn" type="button" data-mvall>Move all ${left.length}</button>`:'')
-        :`<p class="muted" style="margin:0">${sug.length?'All sorted.':'Nothing to move. Your tops are already in the right places.'} New pieces you add are sorted into these categories automatically.</p>`};
+        :`<p class="muted" style="margin:0">${sug.length?'All sorted.':'Nothing to move. Your pieces are already in the right categories.'}</p>`;setNext()};
     const move=async x=>{const i=S.items.get(x.id);if(i)await saveDoc('items',x.id,{...i,type:x.to,group:GROUP_OF[x.to]||'Tops'});x.done=true};
     box.addEventListener('click',async e=>{
       const m=e.target.closest('[data-mv]');if(m){const x=sug.find(y=>y.id===m.dataset.mv);if(x)await move(x);paint();return}
