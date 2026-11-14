@@ -816,7 +816,7 @@ async function bumpTaste(ids,dPair,dSkip){
   if(!ids.length)return;const t=JSON.parse(JSON.stringify(taste()));t.pairs??={};t.skips??={};
   for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){const k=pairKey(ids[a],ids[b]);t.pairs[k]=Math.max(-3,Math.min(3,(t.pairs[k]||0)+dPair))}
   if(dSkip)for(const id of ids)t.skips[id]=(t.skips[id]||0)+dSkip;
-  await saveDoc('prefs','taste',t);
+  t.updatedAt=Date.now();await idbPut('prefs','taste',t);S.prefs.set('taste',t);if(S.deleted.delete('prefs/taste'))await saveTomb();scheduleSync();
 }
 function coWear(){const m={};for(const p of S.plans.values()){const ids=[...new Set(p.itemIds||[])];for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){const k=pairKey(ids[a],ids[b]);m[k]=(m[k]||0)+1}}return m}
 const hueOf=it=>{const hex=it?.colourHex||GEN_HEX[genericName(it?.colour)];if(!hex)return null;const[r,g,b]=hexToRgb(hex).map(v=>v/255),mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx-mn<.18)return null;
@@ -907,9 +907,10 @@ function settleCar(car){
 function wireShuffle(){
   const sh=S.shuf,prev=sh._prev;sh._prev=null;
   document.querySelectorAll('.scar').forEach(car=>{
-    if(prev&&prev[car.dataset.car]!=null){car.scrollLeft=prev[car.dataset.car];requestAnimationFrame(()=>centreCar(car,true))}else centreCar(car,false);
-    let t=null;car.addEventListener('scroll',()=>{clearTimeout(t);t=setTimeout(()=>{if(!car._prog)settleCar(car)},130)});
-    car.addEventListener('click',e=>{const c=e.target.closest('.scard');if(!c)return;car.querySelectorAll('.scard.on').forEach(x=>x.classList.remove('on'));c.classList.add('on');
+    if(prev&&prev[car.dataset.car]!=null){car.scrollLeft=prev[car.dataset.car];requestAnimationFrame(()=>centreCar(car,true))}else{centreCar(car,false);requestAnimationFrame(()=>requestAnimationFrame(()=>centreCar(car,false)))}
+    const mark=()=>{car._user=true};car.addEventListener('touchstart',mark,{passive:true});car.addEventListener('pointerdown',mark);car.addEventListener('wheel',mark,{passive:true});
+    let t=null;car.addEventListener('scroll',()=>{clearTimeout(t);t=setTimeout(()=>{if(car._user&&!car._prog){settleCar(car);car._user=false}},130)});
+    car.addEventListener('click',e=>{const c=e.target.closest('.scard');if(!c)return;car._user=true;car.querySelectorAll('.scard.on').forEach(x=>x.classList.remove('on'));c.classList.add('on');
       const left=c.offsetLeft-(car.clientWidth-c.offsetWidth)/2;car.scrollTo({left,behavior:'smooth'})});
   });
   const spin=()=>{const prev={};document.querySelectorAll('.scar').forEach(c=>prev[c.dataset.car]=c.scrollLeft);sh._prev=prev;doShuffle();render()};
