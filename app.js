@@ -864,7 +864,8 @@ const OPTIONAL_ROWS=[['hat','Hat & hair'],['outer','Jacket'],['shoes','Shoes'],[
 const LOCK_SVG='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function shuffleView(){
   if(!S.ready)return '';
-  const sh=S.shuf;if(sh.closet!=='all'&&!S.closets.has(sh.closet))sh.closet='all';
+  const sh=S.shuf;if(sh.closet!==S.closet){sh.closet=S.closet;sh.cur=null;sh.err='';sh.slots={};sh.locks.clear()}
+  if(sh.closet!=='all'&&!S.closets.has(sh.closet))sh.closet='all';
   if(!sh.cur&&!sh.err)doShuffle();
   const withs=Object.entries(sh.slots).filter(([k])=>k.startsWith('with')).map(([,id])=>S.items.get(id)).filter(Boolean);
   const row=k=>{const ids=(sh.pools[k]||[]).filter(id=>S.items.has(id)),on=sh.slots[k],loop=ids.length>1,copies=loop?3:1;
@@ -872,8 +873,7 @@ function shuffleView(){
     return `<div class="srow r-${k}"><span class="srlab">${SLOTNAME[k]}</span>${on?`<button type="button" class="srlock" data-lock="${k}" aria-pressed="${sh.locks.has(k)}" aria-label="${sh.locks.has(k)?'Unlock':'Lock'} ${SLOTNAME[k]}">${LOCK_SVG}</button>`:''}
       ${ids.length?`<div class="scar" data-car="${k}" data-n="${ids.length}" aria-label="${SLOTNAME[k]}: swipe to choose">${Array.from({length:copies},(_,c)=>ids.map(id=>card(id,c)).join('')).join('')}</div>`
         :`<p class="muted srempty">${ROW_EMPTY[k]}</p>`}</div>`};
-  return `${closetChips(sh.closet,'data-shufcloset')}
-    <div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
+  return `<div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
 </div>
     <div class="chips" role="group" aria-label="Outfit kind">${[['mix','Mix it up'],['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
@@ -1393,7 +1393,7 @@ function closetSwitcher(){
   const sh=openSheet(`${head('Your closets')}<div class="list">${list.length>1?row('all','All closets',S.items.size):''}${list.map(([id,c])=>row(id,c.name,counts[id]||0)).join('')}</div>
     <div class="btns"><button class="btn" type="button" id="csEdit">${list.length>1?'Edit closets':'+ Add a closet'}</button></div>`);
   sh.addEventListener('click',e=>{
-    const b=e.target.closest('[data-cs]');if(b){S.closet=b.dataset.cs;S.type='All';S.group='All';ls.set('closet.current',S.closet);closeSheet();if(S.view!=='closet'){S.view='closet';ls.set('closet.view','closet')}render();scrollTo(0,0);return}
+    const b=e.target.closest('[data-cs]');if(b){S.closet=b.dataset.cs;S.type='All';S.group='All';ls.set('closet.current',S.closet);closeSheet();render();scrollTo(0,0);return}
     if(e.target.closest('#csEdit')){closeSheet();closetsSheet()}
   });
 }
