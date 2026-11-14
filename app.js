@@ -628,7 +628,9 @@ function subcatsHTML(all){
   const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))];
   if(S.type!=='All'&&!types.includes(S.type))S.type='All';
   const n=Object.values(cnt).reduce((a,b)=>a+b,0);
-  return `<div class="chips subcats" role="group" aria-label="${esc(S.group)} types"><button class="chip" type="button" data-type="All" aria-pressed="${S.type==='All'}">All ${esc(S.group.toLowerCase())} <small>${n}</small></button>${types.map(t=>`<button class="chip" type="button" data-type="${esc(t)}" aria-pressed="${S.type===t}">${esc(t)} <small>${cnt[t]||0}</small></button>`).join('')}</div>`;
+  // small icon buttons for the types in this category (all shown, no sideways scrolling)
+  const sub=(val,label,count,icon)=>`<button class="cat" type="button" data-type="${esc(val)}" aria-pressed="${S.type===val}" aria-label="${esc(label)}, ${count}"><span class="cic">${icon}<span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
+  return `<div class="cats subgrid" role="group" aria-label="${esc(S.group)} types">${sub('All','All '+S.group.toLowerCase(),n,groupIcon(S.group))}${types.map(t=>sub(t,t,cnt[t]||0,typeIcon(t))).join('')}</div>`;
 }
 // --- Filter & sort ---
 const SORTS=[['new','Newest first'],['old','Oldest first'],['name','Name A–Z'],['priceHi','Price: high to low'],['priceLo','Price: low to high'],['most','Most worn'],['least','Least worn'],
