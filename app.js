@@ -617,8 +617,8 @@ function closetView(){
     +(untagged||sortDue?`<button class="bulkbtn" type="button" id="qtBtn" aria-label="Organize${untagged?`: ${untagged} piece${untagged===1?'':'s'} need seasons and dressiness`:''}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Organize${untagged?' '+untagged:''}</button>`:'')+`</div>`
     ;
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
-  if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
-  return top+`
+  if(!all.length)return top+maybeCard()+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
+  return top+maybeCard()+`
     <div class="cats cgrid" role="group" aria-label="Category">${groupRow(all)}</div>
     <div id="subcats">${subcatsHTML(all)}</div>
     <input class="search" id="q" type="search" placeholder="Search your closet" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(S.q)}" aria-label="Search closet">
@@ -647,14 +647,14 @@ function subcatsHTML(all){
 const SORTS=[['new','Newest first'],['old','Oldest first'],['name','Name A–Z'],['priceHi','Price: high to low'],['priceLo','Price: low to high'],['most','Most worn'],['least','Least worn'],
   ['longest','Not worn in longest'],['dressHi','Dressiest first'],['dressLo','Most casual first'],['colour','Colour']];
 const DRESS_FILTERS=[['casual','Casual (1–4)',1,4],['everyday','Everyday (3–7)',3,7],['dressy','Dressy (6–9)',6,9],['formal','Formal (8–10)',8,10]];
-const WORN_FILTERS=[['never','Never worn'],['stale','Not worn in 3 months'],['recent','Worn in the last month'],['leaving','Marked to let go']];
+const WORN_FILTERS=[['never','Never worn'],['stale','Not worn in 3 months'],['recent','Worn in the last month'],['leaving','Marked to let go'],['maybe','In the maybe bag']];
 function fPass(id,i,f=S.f,W=wear().items){
   if(f.colours.length&&!itemColours(i).some(c=>f.colours.includes(c)))return false;
   if(f.seasons.length&&!f.seasons.some(s=>fitsSeason(i,s)))return false;
   if(f.dress){const r=DRESS_FILTERS.find(x=>x[0]===f.dress),d=dressOf(i);if(r&&(d<r[2]||d>r[3]))return false}
   if(f.styles.length&&!f.styles.includes(styleOf(i)))return false;
   if(f.worn){const l=last(W[id]);
-    if(f.worn==='never'&&l)return false;if(f.worn==='stale'&&l&&daysAgo(l)<90)return false;if(f.worn==='recent'&&!(l&&daysAgo(l)<=31))return false;if(f.worn==='leaving'&&!i.fate)return false}
+    if(f.worn==='never'&&l)return false;if(f.worn==='stale'&&l&&daysAgo(l)<90)return false;if(f.worn==='recent'&&!(l&&daysAgo(l)<=31))return false;if(f.worn==='leaving'&&!i.fate)return false;if(f.worn==='maybe'&&!i.maybeAt)return false}
   return true;
 }
 const fCount=(f=S.f)=>f.colours.length+f.seasons.length+(f.dress?1:0)+f.styles.length+(f.worn?1:0);
@@ -761,6 +761,7 @@ function itemCard(id,i,W){
   return `<button class="card" type="button" data-item="${id}">
     <div class="${phCls(i)}">${thumb(i)}</div>
     ${i.price!==''&&i.price!=null?`<span class="tag">${money(i.price)}</span>`:''}
+    ${i.maybeAt&&!i.fate?`<span class="mbtag" title="In the maybe bag">${BAG_SVG}<span class="vh">In the maybe bag</span></span>`:''}
     <div class="nm">${esc(i.name||'Untitled')}</div>
     <div class="meta">${c?`<span class="sws"><span class="sw" style="background:${c}"></span>${c2.map(x=>`<span class="sw sm" style="background:${x}"></span>`).join('')}</span>`:''}<span>${l?`Worn ${r.worn.length}× · ${ago(l)}`:'Not worn yet'}</span></div>
   </button>`;
@@ -807,7 +808,7 @@ const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
   const inPool=i=>{const t=typeOf(i);return group==='Shoes'?SHOE_T.includes(t):group==='Head'?HEAD_T.includes(t):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(t)&&!UNDER_T.includes(t):groupOf(i)===group};
-  const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
+  const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate&&!i.maybeAt);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
   return fit.length||loose===false?fit:base;
@@ -1096,6 +1097,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#qtBtn')){needsSortCheck()?sortSheet():quickTagSheet();return}
   const lok=e.target.closest('[data-look]');if(lok){lookSheet(lok.dataset.look);return}
   const lf=e.target.closest('[data-lookf]');if(lf){S.lookFilter=lf.dataset.lookf;render();return}
+  if(e.target.closest('#maybeBtn')){maybeSheet();return}
   const dc=e.target.closest('[data-dc]');if(dc){dc.dataset.dc==='start'?declutterSheet():leavingSheet();return}
   const wx=e.target.closest('[data-wx]');if(wx){const a=wx.dataset.wx;if(a==='here')wxUseHere();else if(a==='change'){WX.setup=true;WX.err='';render()}else if(a==='cancel'){WX.setup=false;WX.err='';render()}else if(a==='hide'){ls.set('closet.wx.off','1');render()}else if(a==='show'){ls.set('closet.wx.off',null);WX.setup=true;render()}return}
   const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';S.group='All';ls.set('closet.current',S.closet);render();return}
@@ -1140,12 +1142,14 @@ function itemActions(id){
     <div class="actions">
       <button class="btn" type="button" id="aEdit">Edit</button>
       <button class="btn" type="button" id="aWear">Wore it today</button>
+      <button class="btn" type="button" id="aMaybe">${it.maybeAt?'Take out of maybe bag':'Put in maybe bag'}</button>
       <button class="btn danger" type="button" id="aDel">Delete</button>
       <button class="btn" type="button" data-close>Cancel</button>
     </div>`);
   sh.querySelector('#aEdit').addEventListener('click',()=>{closeSheet();itemSheet(id)});
   const wt=sh.querySelector('#aWear');
   wt.addEventListener('click',()=>guard(wt,async()=>{const t=today(),p=S.plans.get(t);const ids=[...new Set([...(p?.itemIds||[]),id])];await saveDoc('plans',t,{itemIds:ids,outfitId:matchOutfit(ids),note:p?.note||''});closeSheet();toast('Logged for today')}));
+  const mb=sh.querySelector('#aMaybe');mb.addEventListener('click',()=>guard(mb,async()=>{const on=!it.maybeAt;await setMaybe(id,on);closeSheet();toast(on?`In the maybe bag. Check back in ${MAYBE_DAYS} days.`:'Taken out of the maybe bag')}));
   const del=sh.querySelector('#aDel');
   armDelete(del,()=>guard(del,async()=>{await delDoc('items',id);for(const d of imageIdsOf(it))await dropImage(d);closeSheet();toast(`Deleted ${it.name||'item'}`)}));
 }
@@ -1175,6 +1179,7 @@ function bulkSheet(){
   const sh=openSheet(`${head('Upload items')}
     <p class="muted" style="margin:0">Choose several photos, one piece of clothing per photo. Each photo becomes its own item, with its background removed.</p>
     ${closets.length>1?`<div class="field"><label for="bCloset">Add to closet</label><select id="bCloset">${closets.map(([cid,c])=>`<option value="${cid}" ${cid===defCloset?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`:''}
+    <label class="check"><input type="checkbox" id="bMaybe"> Not sure about these: put them in the maybe bag</label>
     <label class="check"><input type="checkbox" id="bAuto" ${ls.get('closet.autoDetect')!=='off'?'checked':''}> Name and sort them automatically</label>
     <label class="btn primary filebtn" id="bPick">Choose photos<input type="file" accept="image/*" multiple id="bFiles"></label>
     <p class="muted" id="bMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
@@ -1187,7 +1192,7 @@ function bulkSheet(){
   const created=[];
   sh.querySelector('#bFiles').addEventListener('change',async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
-    const closetId=sh.querySelector('#bCloset')?.value||defCloset,cut=true,auto=autoEl.checked;
+    const closetId=sh.querySelector('#bCloset')?.value||defCloset,cut=true,auto=autoEl.checked,bag=sh.querySelector('#bMaybe').checked;sh.querySelector('#bMaybe').disabled=true;
     sh.querySelector('#bPick').hidden=true;autoEl.disabled=true;
     const rows=files.map((f,i)=>{const r=document.createElement('div');r.className='brow';r.innerHTML=`<span class="mini"></span><span class="tx"><b>Photo ${i+1}</b><small>Waiting…</small></span>`;list.append(r);return r});
     for(let i=0;i<files.length;i++){
@@ -1201,7 +1206,7 @@ function bulkSheet(){
       if(auto){st('Recognizing…');await paintPause();try{g=await autoDetect(r.blob,r.cutout,m=>msg.textContent=m)}catch(err){console.warn(err)}}
       try{
         const imageId=await addImage(r.blob),iid=newId();
-        await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now()});
+        await saveDoc('items',iid,{name:g.name,price:null,type:g.type,group:g.group,closetId,colour:g.colour,colourHex:g.colourHex||null,colours2:g.colours2||[],style:'',imageId,cutout:r.cutout,createdAt:Date.now(),...(bag?{maybeAt:Date.now()}:{})});
         created.push(iid);URL.revokeObjectURL(pv);if(g.emb)idbPut('emb','item:'+imageId,g.emb).catch(()=>{});await paintPause();
         row.innerHTML=`<span class="mini ${r.cutout?'cut':''}">${img(imageId)}</span><span class="tx"><input data-bname="${iid}" value="${esc(g.name)}" aria-label="Name"><select data-btype="${iid}" aria-label="Type">${typeOptions(g.type)}</select></span><input class="bprice" data-bprice="${iid}" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$" aria-label="Price">`;
       }catch(err){console.error(err);st(err?.name==='QuotaExceededError'?'Skipped: this device is out of space':'Skipped: couldn’t save')}
@@ -1297,7 +1302,7 @@ function itemSheet(id){
     ${tagsHTML(it)}
     ${pairsHTML(id)}
     <div class="btns"><button class="btn primary" type="button" id="save">${it?'Save changes':'Add to closet'}</button>
-      ${it?`<button class="btn" type="button" id="wearToday">Wore it today</button><button class="btn danger" type="button" id="del">Delete</button>`:''}</div>`);
+      ${it?`<button class="btn" type="button" id="wearToday">Wore it today</button><button class="btn" type="button" id="maybeT">${it.maybeAt?'Take out of maybe bag':'Maybe bag'}</button><button class="btn danger" type="button" id="del">Delete</button>`:''}</div>`);
   // per-slot photo state: id = stored image, blob = new unsaved image, cleared = user removed it
   const P={front:{id:it?.imageId||null,cutout:!!it?.cutout,blob:null},back:{id:it?.backImageId||null,cutout:!!it?.backCutout,blob:null}};
   const cutMsg=sh.querySelector('#cutMsg');
@@ -1392,6 +1397,7 @@ function itemSheet(id){
   if(it){
     const wt=sh.querySelector('#wearToday');
     wt.addEventListener('click',()=>guard(wt,async()=>{const t=today(),p=S.plans.get(t);const ids=[...new Set([...(p?.itemIds||[]),id])];await saveDoc('plans',t,{itemIds:ids,outfitId:matchOutfit(ids),note:p?.note||''});closeSheet();toast('Logged for today')}));
+    const mt=sh.querySelector('#maybeT');mt.addEventListener('click',()=>guard(mt,async()=>{const on=!S.items.get(id)?.maybeAt;await setMaybe(id,on);closeSheet();toast(on?`In the maybe bag. Check back in ${MAYBE_DAYS} days.`:'Taken out of the maybe bag')}));
     const del=sh.querySelector('#del');
     armDelete(del,()=>guard(del,async()=>{await delDoc('items',id);for(const d of imageIdsOf(it))await dropImage(d);closeSheet();toast('Deleted')}));
   }
@@ -1867,7 +1873,7 @@ function declutterList(){
   const W=wear().items,out=[];const twins={};
   for(const[id,i]of S.items){const c=genericName(i.colour);if(c)(twins[typeOf(i)+'|'+c]??=[]).push(id)}
   for(const[id,i]of S.items){
-    if(i.fate||(i.keptAt&&Date.now()-i.keptAt<180*864e5))continue;
+    if(i.fate||i.maybeAt||(i.keptAt&&Date.now()-i.keptAt<180*864e5))continue;
     const r=W[id],wears=r?.worn.length||0,l=last(r),age=Math.max(0,Math.round((Date.now()-(i.createdAt||Date.now()))/864e5));
     const why=[];let score=0;
     if(!wears){why.push(age>=30?'Not worn since you added it':'No wears logged yet');score+=age>=30?3:1}
@@ -1884,13 +1890,13 @@ function declutterList(){
 }
 const DC_Q=['Would you buy it again today?','Does it fit you right now?','Have you reached for it this season?','Does it go with at least three other pieces?','Would you be fine if it was gone tomorrow?','Is it waiting for an occasion that never comes?'];
 function declutterSheet(){
-  const queue=declutterList();let i=0,counts={keep:0,donate:0,sell:0,toss:0};
+  const queue=declutterList();let i=0,counts={keep:0,maybe:0,donate:0,sell:0,toss:0};
   const sh=openSheet(`${head('Declutter')}<div id="dc" class="dc"></div>`);const box=sh.querySelector('#dc');
   const show=()=>{
     while(i<queue.length&&!S.items.has(queue[i].id))i++;
     if(i>=queue.length){
       const n=counts.donate+counts.sell+counts.toss;
-      box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>${queue.length?'All done':'Nothing to reconsider'}</h2><p>${queue.length?`You kept ${counts.keep} and marked ${n} to let go.`:'Log more outfits and looks, and pieces you don’t wear will show up here.'}</p></div>
+      box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>${queue.length?'All done':'Nothing to reconsider'}</h2><p>${queue.length?`You kept ${counts.keep}${counts.maybe?`, bagged ${counts.maybe}`:''} and marked ${n} to let go.`:'Log more outfits and looks, and pieces you don’t wear will show up here.'}</p></div>
         <div class="btns">${[...S.items.values()].some(x=>x.fate)?'<button class="btn primary" type="button" data-dcgo>See what’s leaving</button>':''}<button class="btn" type="button" data-dcclose>Close</button></div>`;
       return;
     }
@@ -1901,7 +1907,7 @@ function declutterSheet(){
       <div class="dcwhy">${why.map(w=>`<span>${esc(w)}</span>`).join('')}</div>
       <div class="stats"><div class="stat"><b>${wears}×</b><small>Worn</small></div><div class="stat"><b>${l?shortAgo(l):'—'}</b><small>Last worn</small></div><div class="stat"><b>${pr?money(pr):'—'}</b><small>Price</small></div></div>
       <p class="dcq">${DC_Q[i%DC_Q.length]}</p>
-      <div class="dcbtns"><button class="btn primary" type="button" data-fate="keep">Keep</button><button class="btn" type="button" data-fate="donate">Donate</button><button class="btn" type="button" data-fate="sell">Sell</button><button class="btn" type="button" data-fate="toss">Toss</button></div>
+      <div class="dcbtns"><button class="btn primary" type="button" data-fate="keep">Keep</button><button class="btn" type="button" data-fate="maybe">Maybe bag</button><button class="btn" type="button" data-fate="donate">Donate</button><button class="btn" type="button" data-fate="sell">Sell</button><button class="btn" type="button" data-fate="toss">Toss</button></div>
       <button class="linkbtn" type="button" data-fate="skip">Decide later</button>`;
   };
   box.addEventListener('click',async e=>{
@@ -1911,6 +1917,7 @@ function declutterSheet(){
     const f=b.dataset.fate,id=queue[i]?.id,it=S.items.get(id);
     box.querySelectorAll('[data-fate]').forEach(x=>x.disabled=true);
     try{if(it&&f==='keep'){await saveDoc('items',id,{...it,keptAt:Date.now()});counts.keep++}
+      else if(it&&f==='maybe'){await setMaybe(id,true);counts.maybe++}
       else if(it&&FATES[f]){await saveDoc('items',id,{...it,fate:f,fateAt:Date.now()});counts[f]++}}
     catch(err){console.error(err);toast('Couldn’t save. Please try again.')}
     i++;show();
@@ -2171,6 +2178,51 @@ async function autoOutfits(){
       const p=S.plans.get(l.date);if(p&&!p.outfitId)await saveDoc('plans',l.date,{...p,outfitId:oid})}
   }
   return made;
+}
+
+
+/* ---------- maybe bag: pieces you're unsure about go out of sight for a month ----------
+   item.maybeAt = when it went in. Wearing it in that time means you reached for it (keep);
+   after MAYBE_DAYS untouched it's ready to decide, and the app suggests letting it go. */
+const MAYBE_DAYS=30;
+const BAG_SVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/></svg>';
+const isoDay=ts=>{const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+function maybeInfo(id,i,W=wear().items){
+  if(!i?.maybeAt)return null;
+  const days=Math.floor((Date.now()-i.maybeAt)/864e5),from=isoDay(i.maybeAt),worn=(W[id]?.worn||[]).filter(d=>d>=from);
+  return{days,worn:worn.length,left:Math.max(0,MAYBE_DAYS-days),ready:worn.length>0||days>=MAYBE_DAYS};
+}
+const maybeItems=()=>[...S.items.entries()].filter(([,i])=>i.maybeAt&&!i.fate);
+async function setMaybe(id,on){
+  const it=S.items.get(id);if(!it)return;
+  if(on){const{keptAt,...rest}=it;await saveDoc('items',id,{...rest,maybeAt:Date.now()})}
+  else{const{maybeAt,...rest}=it;await saveDoc('items',id,rest)}
+}
+function maybeCard(){
+  const all=maybeItems();if(!all.length)return '';
+  const W=wear().items,ready=all.filter(([id,i])=>maybeInfo(id,i,W).ready).length;
+  return `<button type="button" class="mbcard" id="maybeBtn">${BAG_SVG}<span class="tx"><b>Maybe bag · ${all.length}</b><small>${ready?`${ready} ready to decide`:`Next check in ${Math.min(...all.map(([id,i])=>maybeInfo(id,i,W).left))} days`}</small></span>${ready?'<span class="mbdot" aria-hidden="true"></span>':''}</button>`;
+}
+function maybeSheet(){
+  const sh=openSheet(`${head('Maybe bag')}<p class="muted" style="margin:0;font-size:14px">Put the bag somewhere out of sight. Anything you go looking for in the next ${MAYBE_DAYS} days stays. Anything you don’t miss can go.</p><div id="mb" class="list"></div>`);
+  const box=sh.querySelector('#mb');
+  const show=()=>{
+    const W=wear().items,rows=maybeItems().map(([id,i])=>({id,i,m:maybeInfo(id,i,W)}))
+      .sort((a,b)=>(b.m.ready-a.m.ready)||(b.m.days-a.m.days));
+    if(!rows.length){box.innerHTML=`<p class="muted" style="margin:0">The bag is empty. Long-press a piece, or open it, and choose “Maybe bag”.</p>`;return}
+    box.innerHTML=rows.map(({id,i,m})=>{
+      const st=m.worn?`You wore it ${m.worn===1?'once':m.worn+' times'} since it went in, so you reached for it`:m.ready?`${m.days} days and you didn’t reach for it`:`${m.days} day${m.days===1?'':'s'} in · decide in ${m.left} day${m.left===1?'':'s'}`;
+      const btns=m.ready&&!m.worn?`<button class="btn sm primary" type="button" data-mb="go" data-id="${id}">Let it go</button><button class="linkbtn" type="button" data-mb="keep" data-id="${id}">Keep it</button>`
+        :m.worn?`<button class="btn sm primary" type="button" data-mb="keep" data-id="${id}">Keep it</button><button class="linkbtn" type="button" data-mb="go" data-id="${id}">Let it go</button>`
+        :`<button class="btn sm" type="button" data-mb="keep" data-id="${id}">Take out</button><button class="linkbtn" type="button" data-mb="go" data-id="${id}">Let it go now</button>`;
+      return `<div class="li lvrow${m.ready?' mbready':''}"><span class="mini ${i.cutout&&hasImg(i)?'cut':''}">${thumb(i)}</span><span class="tx"><b>${esc(i.name||'Piece')}</b><small>${esc(st)}</small></span><span class="lvb">${btns}</span></div>`}).join('');
+  };
+  box.addEventListener('click',e=>{const b=e.target.closest('[data-mb]');if(!b)return;guard(b,async()=>{
+    const id=b.dataset.id,it=S.items.get(id);if(!it)return;const{maybeAt,...rest}=it;
+    if(b.dataset.mb==='keep'){await saveDoc('items',id,{...rest,keptAt:Date.now()});toast(`Kept ${it.name||'piece'}`)}
+    else{await saveDoc('items',id,{...rest,fate:'donate',fateAt:Date.now()});toast(`${it.name||'Piece'} is on the way out. Find it under Stats › Declutter › Leaving.`)}
+    show()})});
+  show();
 }
 
 /* ---------- boot ---------- */
