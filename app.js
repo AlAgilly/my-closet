@@ -625,13 +625,14 @@ function groupRow(all){
   const cnt={};for(const[,i]of all){const g=groupOf(i);cnt[g]=(cnt[g]||0)+1}
   const show=[...MAIN_GROUPS.filter(g=>cnt[g]),...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
   if(S.group!=='All'&&!show.includes(S.group))S.group='All';
+  show.sort((a,b)=>(cnt[b]||0)-(cnt[a]||0));  // most pieces first
   return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g,cnt[g]||0,'group')).join('');
 }
 const GROUP_OF_GROUP=g=>GROUPS.some(x=>x[0]===g);
 function subcatsHTML(all){
   if(S.group==='All')return '';
   const cnt={};for(const[,i]of all)if(groupOf(i)===S.group){const t=typeOf(i);cnt[t]=(cnt[t]||0)+1}
-  const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))].filter(t=>cnt[t]);
+  const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))].filter(t=>cnt[t]).sort((a,b)=>cnt[b]-cnt[a]);  // most pieces first
   if(S.type!=='All'&&!types.includes(S.type))S.type='All';
   const n=Object.values(cnt).reduce((a,b)=>a+b,0);
   // small icon buttons for the types in this category (all shown, no sideways scrolling)
