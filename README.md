@@ -38,7 +38,8 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Heels: [Shoes](https://www.flaticon.com/free-icon/shoes_6717443) by Vectors Tank (flipped)
   - Glasses: [Reading eyeglasses](https://www.flaticon.com/free-icon/reading-eyeglasses_27106) by Magnific
   - Hats: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
-  - Jackets: [Jacket](https://www.flaticon.com/free-icon/jacket_5758286) by Ehtisham Abid
+  - Jackets: [Jacket](https://www.flaticon.com/free-icon/jacket_2806119) by Victoruler
+  - Jackets group: [Jacket](https://www.flaticon.com/free-icon/jacket_5758286) by Ehtisham Abid
   - Jeans: [Jeans](https://www.flaticon.com/free-icon/jeans_492175) by Magnific
   - Jewelry: [Necklace](https://www.flaticon.com/free-icon/necklace_775385) by Smashicons
   - Jumpsuits: [Jumpsuit](https://www.flaticon.com/free-icon/jumpsuit_2290421) by photo3idea_studio

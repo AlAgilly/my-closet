@@ -707,6 +707,7 @@ const ICON={
   glasses:'<img class="ico" src="icons/glasses.png" alt="" draggable="false">',
   hats:'<img class="ico" src="icons/hats.png" alt="" draggable="false">',
   jackets:'<img class="ico" src="icons/jackets.png" alt="" draggable="false">',
+  grp_jackets:'<img class="ico" src="icons/grp_jackets.png" alt="" draggable="false">',
   jeans:'<img class="ico" src="icons/jeans.png" alt="" draggable="false">',
   jewelry:'<img class="ico" src="icons/jewelry.png" alt="" draggable="false">',
   jumpsuits:'<img class="ico" src="icons/jumpsuits.png" alt="" draggable="false">',
@@ -739,7 +740,7 @@ const ICON={
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Shoes':'footwear','Boots':'boots','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Sweatpants':'sweatpants','Hair accessories':'hair','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Footwear:'grp_footwear',Accessories:'grp_accessories',Other:'other'};
+const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'grp_jackets',Footwear:'grp_footwear',Accessories:'grp_accessories',Other:'other'};
 function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
