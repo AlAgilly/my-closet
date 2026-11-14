@@ -21,6 +21,7 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
 
 ## Credits
 
+- Tops (blouse), Long sleeves and Crewnecks icons are drawn for this app in the same line style.
 - Icons from [Flaticon](https://www.flaticon.com), free with attribution, redrawn at one uniform line width:
   - Activewear: [Sportwear](https://www.flaticon.com/free-icon/sportwear_18842964) by Adury5711
   - Bags: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish
@@ -44,7 +45,7 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Skirts: [Skirt](https://www.flaticon.com/free-icon/skirt_2161139) by Smashicons
   - Sweaters: [Sweater](https://www.flaticon.com/free-icon/sweater_88802) by Magnific
   - Hoodies: [Hoodie](https://www.flaticon.com/free-icon/hoodie_9431851) by juicy_fish
-  - Tops: [T shirt](https://www.flaticon.com/free-icon/t-shirt_11205893) by JoeKanaka
+  - Short sleeves: [T shirt](https://www.flaticon.com/free-icon/t-shirt_11205893) by JoeKanaka
   - Tank tops: [Tanktop](https://www.flaticon.com/free-icon/tanktop_5095867) by iconnut
   - Vests: [Waistcoat](https://www.flaticon.com/free-icon/waistcoat_4343241) by bqlqn
   - Other: [Categories](https://www.flaticon.com/free-icon/categories_7554470) by Nabila30
