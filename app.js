@@ -1116,7 +1116,7 @@ document.addEventListener('click',e=>{
   const go=e.target.closest('[data-go]');if(go){const[k,...r]=go.dataset.go.split(':'),v=r.join(':');S.view='closet';ls.set('closet.view','closet');S.q='';S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};S.group='All';S.type='All';
     if(k==='type'){S.group=GROUP_OF[v]||[...S.items.values()].find(i=>typeOf(i)===v)?.group||'Other';S.type=v}else if(k==='colour'&&v!=='no colour')S.f.colours=[v];render();scrollTo(0,0);return}
 
-  const it=e.target.closest('[data-item]');if(it){itemSheet(it.dataset.item);return}
+  const it=e.target.closest('[data-item]');if(it){itemView(it.dataset.item);return}
   const of=e.target.closest('[data-outfit]');if(of){outfitView(of.dataset.outfit);return}
   const dy=e.target.closest('[data-day]');if(dy){daySheet(dy.dataset.day);return}
   const mn=e.target.closest('[data-mon]');if(mn){S.month=new Date(S.month.getFullYear(),S.month.getMonth()+Number(mn.dataset.mon),1);render();return}
@@ -1396,7 +1396,7 @@ function itemSheet(id){
     await saveDoc('items',sid,{...(it||{}),...data});
     await savePairLinks(sid,PR.goes);
     for(const d of drop)await dropImage(d);
-    closeSheet();toast(id?'Saved':`Added to ${closetName(data.closetId)}`);
+    closeSheet();if(id)itemView(id);toast(id?'Saved':`Added to ${closetName(data.closetId)}`);
   }));
   if(it){
     const wt=sh.querySelector('#wearToday');
@@ -2158,7 +2158,7 @@ function outfitView(id){
     <div class="btns"><button class="btn primary" type="button" id="oEdit">Edit</button><button class="btn" type="button" id="oWear">Wore it today</button></div>`);
   sh.addEventListener('click',e=>{
     const lk=e.target.closest('[data-vlook]');if(lk){closeSheet();lookSheet(lk.dataset.vlook);return}
-    const it=e.target.closest('[data-vitem]');if(it){closeSheet();itemSheet(it.dataset.vitem);return}
+    const it=e.target.closest('[data-vitem]');if(it){closeSheet();itemView(it.dataset.vitem);return}
     if(e.target.closest('#oEdit')){closeSheet();outfitSheet(id);return}
   });
   const w=sh.querySelector('#oWear');w.addEventListener('click',()=>guard(w,async()=>{const t=today(),p=S.plans.get(t);
@@ -2281,6 +2281,53 @@ function cutHTML(i,show){
   const c=cutOf(i);
   return `<div class="field" id="cutRow" ${show?'':'hidden'}><span class="lbl">Fit <small class="muted" style="text-transform:none;letter-spacing:0">(Shuffle pairs loose with fitted, and never puts a loose top under a fitted jacket)</small></span>
     <div class="fits" role="group" aria-label="Fit">${CUTS.map(([k,l])=>`<button type="button" class="sea" data-cut="${k}" aria-pressed="${c===k}"><small>${l}</small></button>`).join('')}</div></div>`;
+}
+
+
+/* ---------- a piece: view first (details, outfits and looks it's in); Edit opens the editor ---------- */
+function itemView(id){
+  const it=S.items.get(id);if(!it)return;
+  const r=wear().items[id],l=last(r),wears=r?.worn.length||0,price=Number(it.price);
+  const outfits=[...S.outfits.entries()].filter(([,o])=>(o.itemIds||[]).includes(id));
+  const looks=[...S.looks.entries()].filter(([,x])=>x.status===LOOK_DONE&&(x.itemIds||[]).includes(id)).sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||''));
+  const sw=swatchOf(it),c2=(it.colours2||[]).filter(Boolean);
+  const row=(k,v)=>v?`<div class="kv"><span>${k}</span><b>${v}</b></div>`:'';
+  const seas=(it.seasons||[]).length?(it.seasons.length===4?'Any season':SEASONS.filter(x=>it.seasons.includes(x[0])).map(x=>x[1]).join(', ')):'';
+  const goes=(it.goes||[]).filter(x=>S.items.has(x)),needs=(it.needs||[]).filter(x=>S.items.has(x));
+  const chips=ids=>`<div class="hscroll">${ids.map(x=>{const j=S.items.get(x);return `<button type="button" class="gk" data-vitem="${x}"><div class="${phCls(j)}">${thumb(j)}</div><small>${esc(j.name)}</small></button>`}).join('')}</div>`;
+  const mi=maybeInfo(id,it);
+  const sh=openSheet(`${head(esc(it.name||'Piece'))}
+    <div class="ivph">${[[it.imageId,it.cutout,'Front'],[it.backImageId,it.backCutout,'Back']].filter(([p])=>p&&URLS.has(p)).map(([p,c,lb])=>`<div class="${'ph'+(c?' cut':'')}" aria-label="${lb}">${img(p)}</div>`).join('')||`<div class="${phCls(it)}">${thumb(it)}</div>`}</div>
+    ${mi?`<p class="ivnote">${BAG_SVG}<span>In the maybe bag · ${mi.worn?'you reached for it':mi.ready?'ready to decide':`decide in ${mi.left} day${mi.left===1?'':'s'}`}</span></p>`:''}
+    ${it.fate?`<p class="ivnote"><span>Marked to ${(FATES[it.fate]||it.fate).toLowerCase()}</span></p>`:''}
+    <div class="stats"><div class="stat"><b>${wears}×</b><small>Worn</small></div><div class="stat"><b>${l?shortAgo(l):'Never'}</b><small>Last worn</small></div><div class="stat"><b>${price&&wears?money(price/wears):price?money(price):'—'}</b><small>${price&&wears?'Per wear':'Price'}</small></div></div>
+    <div class="kvs">
+      ${row('Category',esc(groupOf(it)+' › '+typeOf(it)))}
+      ${S.closets.size>1?row('Closet',esc(closetName(closetOf(it)))):''}
+      ${price?row('Price',money(price)):''}
+      ${row('Colour',sw||it.colour?`<span class="kvsw">${sw?`<span class="sw" style="background:${sw}"></span>`:''}${esc(it.colour||'')}${c2.length?` <small class="muted">with ${esc(c2.join(', '))}</small>`:''}</span>`:'')}
+      ${CUT_GROUPS.includes(groupOf(it))?row('Fit',(CUTS.find(c=>c[0]===cutOf(it))||[])[1]+(it.cut?'':' <small class="muted">(guess)</small>')):''}
+      ${row('Seasons',esc(seas))}
+      ${row('How dressy',it.dress?`${it.dress} · ${esc(dressWord(it.dress))}`:'')}
+      ${r?.next?row('Next planned',fmtDate(r.next)):''}
+    </div>
+    ${needs.length?`<div class="lbl">Always worn with</div>${chips(needs)}`:''}
+    ${goes.length?`<div class="lbl">Goes well with</div>${chips(goes)}`:''}
+    <div class="lbl">In ${outfits.length} outfit${outfits.length===1?'':'s'}</div>
+    ${outfits.length?`<div class="ivgrid">${outfits.map(([oid,o])=>`<button class="card" type="button" data-voutfit="${oid}">${boardHTML(o.itemIds||[],o.layout)}<div class="nm">${esc(o.name||'Outfit')}</div></button>`).join('')}</div>`
+      :`<p class="muted" style="margin:0;font-size:13px">Not in a saved outfit yet.</p>`}
+    <div class="lbl">Worn in ${looks.length} look${looks.length===1?'':'s'}</div>
+    ${looks.length?`<div class="lgrid">${looks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph">${img(x.imageId)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
+      :`<p class="muted" style="margin:0;font-size:13px">No logged looks with this piece yet.</p>`}
+    <div class="btns"><button class="btn primary" type="button" id="iEdit">Edit</button><button class="btn" type="button" id="iWear">Wore it today</button><button class="btn" type="button" id="iMaybe">${it.maybeAt?'Take out of maybe bag':'Maybe bag'}</button></div>`);
+  sh.addEventListener('click',e=>{
+    if(e.target.closest('#iEdit')){closeSheet();itemSheet(id);return}
+    const o=e.target.closest('[data-voutfit]');if(o){closeSheet();outfitView(o.dataset.voutfit);return}
+    const lk=e.target.closest('[data-vlook]');if(lk){closeSheet();lookSheet(lk.dataset.vlook);return}
+    const vi=e.target.closest('[data-vitem]');if(vi){closeSheet();itemView(vi.dataset.vitem);return}
+  });
+  const w=sh.querySelector('#iWear');w.addEventListener('click',()=>guard(w,async()=>{const t=today(),p=S.plans.get(t);const ids=[...new Set([...(p?.itemIds||[]),id])];await saveDoc('plans',t,{itemIds:ids,outfitId:matchOutfit(ids),note:p?.note||''});closeSheet();toast('Logged for today')}));
+  const mb=sh.querySelector('#iMaybe');mb.addEventListener('click',()=>guard(mb,async()=>{const on=!S.items.get(id)?.maybeAt;await setMaybe(id,on);closeSheet();toast(on?`In the maybe bag. Check back in ${MAYBE_DAYS} days.`:'Taken out of the maybe bag')}));
 }
 
 /* ---------- boot ---------- */
