@@ -21,8 +21,8 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
 
 ## Credits
 
-- Blouses, Long sleeves, Crewnecks, Leggings, Rompers, Bras, Underwear and Tights icons are drawn for this app in the same line style.
-- Icons from [Flaticon](https://www.flaticon.com), free with attribution, redrawn at one uniform line width:
+- Blouses, Crewnecks, Leggings, Rompers, Bras, Underwear, Tights and Hair accessories icons are drawn for this app in the same line style.
+- Icons from [Flaticon](https://www.flaticon.com), free with attribution, redrawn at one uniform (thin) line width:
   - Activewear: [Sportwear](https://www.flaticon.com/free-icon/sportwear_18842964) by Adury5711
   - Bags: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish
   - Belts: [Belt](https://www.flaticon.com/free-icon/belt_5683319) by Hazicon
@@ -41,14 +41,15 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Jumpsuits: [Jumpsuit](https://www.flaticon.com/free-icon/jumpsuit_2290421) by photo3idea_studio
   - Overalls: [Overalls](https://www.flaticon.com/free-icon/overalls_3345721) by juicy_fish
   - Pants: [Jeans](https://www.flaticon.com/free-icon/jeans_2912587) by Magnific
-  - Shorts: [Shorts](https://www.flaticon.com/free-icon/shorts_10339585) by Irfansusanto20
+  - Shorts: [Shorts](https://www.flaticon.com/free-icon/shorts_586444) by Magnific
   - Skirts: [Skirt](https://www.flaticon.com/free-icon/skirt_2161139) by Smashicons
   - Sweaters: [Sweater](https://www.flaticon.com/free-icon/sweater_88802) by Magnific
   - Hoodies: [Hoodie](https://www.flaticon.com/free-icon/hoodie_9431851) by juicy_fish
   - All: [App](https://www.flaticon.com/free-icon/app_13701579) by Erifqi Zetiawan
-  - Tops group: [Shirt](https://www.flaticon.com/free-icon/shirt_17071121) by Nur syifa fauziah
-  - Bottoms group: [Man](https://www.flaticon.com/free-icon/man_15684562) by Shakeel Ch.
-  - Full length group: [Jumpsuit](https://www.flaticon.com/free-icon/jumpsuit_88788) by Magnific
+  - Tops group: [Shirt](https://www.flaticon.com/free-icon/shirt_695593) by Dreamstale
+  - Bottoms group: [Shorts](https://www.flaticon.com/free-icon/shorts_586444) by Magnific
+  - Full length group: [Dress](https://www.flaticon.com/free-icon/dress_2806167) by Victoruler
+  - Long sleeves: [Shirt](https://www.flaticon.com/free-icon/shirt_4643360) by Magnific
   - Accessories group: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
   - Short sleeves: [T shirt](https://www.flaticon.com/free-icon/t-shirt_11205893) by JoeKanaka
   - Tank tops: [Tanktop](https://www.flaticon.com/free-icon/tanktop_5095867) by iconnut
