@@ -1949,7 +1949,11 @@ const isTagged=i=>i.seasons!==undefined||i.dress!=null;
 function currentSeason(){
   const w=wxDay(today()),m=new Date().getMonth();
   const bym=m<=1||m===11?'winter':m<=4?'spring':m<=7?'summer':'fall';
-  if(w){const t=(w.hi+w.lo)/2;if(t<=4)return'winter';if(t>=20)return'summer';if(bym==='winter'||bym==='summer')return t<12?'fall':'spring'}
+  // the calendar season, nudged only by really cold or hot days (a chilly November day is still fall)
+  if(w){const t=(w.hi+w.lo)/2;
+    if(t<=-3)return'winter';if(t>=24)return'summer';
+    if(bym==='winter'&&t>=10)return m===11?'fall':'spring';
+    if(bym==='summer'&&t<=14)return m===7?'fall':'spring'}
   return bym;
 }
 // untagged pieces use their best guess until you tag them
