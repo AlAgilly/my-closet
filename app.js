@@ -833,7 +833,7 @@ function harmony(id,chosen){let f=1;const h=hueOf(S.items.get(id));if(h===null)r
 function weightedPick(entries,W,chosen=[],ctx=null){
   if(!entries.length)return null;
   const w=entries.map(([id])=>{const l=last(W[id]);let x=!l?1.6:daysAgo(l)<7?.35:daysAgo(l)>45?1.3:1;
-    if(ctx){let a=0;const me=S.items.get(id);for(const c of chosen){const k=pairKey(id,c),o=S.items.get(c);a+=Math.max(-2.5,Math.min(2.5,.6*Math.min(3,ctx.cw[k]||0)+(ctx.t.pairs?.[k]||0)+((me?.goes||[]).includes(c)||(o?.goes||[]).includes(id)?1.2:0)));if(me&&o){const gap=Math.abs(dressOf(me)-dressOf(o));if(gap>2)a-=.5*(gap-2)}}
+    if(ctx){let a=0;const me=S.items.get(id);for(const c of chosen){const k=pairKey(id,c),o=S.items.get(c);a+=Math.max(-2.5,Math.min(2.5,.6*Math.min(3,ctx.cw[k]||0)+(ctx.t.pairs?.[k]||0)+((me?.goes||[]).includes(c)||(o?.goes||[]).includes(id)?1.2:0)));if(me&&o){const gap=Math.abs(dressOf(me)-dressOf(o));if(gap>2)a-=.5*(gap-2);x*=cutBalance(me,o)}}
       x*=Math.exp(.7*a)*harmony(id,chosen)/(1+.12*(ctx.t.skips?.[id]||0));if(ctx.under?.has(id)&&!chosen.length)x*=.35}
     return x});
   let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let k=0;k<entries.length;k++){r-=w[k];if(r<=0)return entries[k][0]}return entries[entries.length-1][0];
@@ -861,7 +861,7 @@ function doShuffle(){
   const ord=GENERIC.map(g=>g[0]),srt=a=>[...a].sort((x,y)=>((ord.indexOf(genericName(x[1].colour))+1)||99)-((ord.indexOf(genericName(y[1].colour))+1)||99)||(x[1].name||'').localeCompare(y[1].name||''));
   sh.pools={};for(const k of want){sh.pools[k]=srt(P[k]).map(([id])=>id);if(slots[k]&&!sh.pools[k].includes(slots[k]))sh.pools[k].unshift(slots[k])}
   const ctx={cw:coWear(),t:taste(),under:new Set([...S.items.values()].flatMap(i=>i.needs||[]))};
-  for(const k of want)if(!slots[k]){const id=weightedPick(P[k],W,Object.values(slots),ctx);if(id)slots[k]=id}
+  for(const k of want)if(!slots[k]){const ok=P[k].filter(([id])=>slotOK(k,id,slots));if(k==='outer'&&!ok.length)continue;const id=weightedPick(ok.length?ok:P[k],W,Object.values(slots),ctx);if(id)slots[k]=id}
   for(const id of Object.values(slots)){const need=needsOf(id);if(!need.length||need.some(n=>Object.values(slots).includes(n)))continue;
     const pickN=weightedPick(need.map(n=>[n,S.items.get(n)]),W,Object.values(slots),ctx);if(pickN){let k='with';let n=2;while(slots[k])k='with'+n++;slots[k]=pickN}}
   sh.shownAt=Date.now();
@@ -908,7 +908,16 @@ function settleCar(car){
   if(!best)return;
   if(+car.dataset.n>1&&best.dataset.copy!=='1'){const twin=car.querySelector(`[data-cid="${best.dataset.cid}"][data-copy="1"]`);if(twin){car.scrollLeft+=twin.offsetLeft-best.offsetLeft;best=twin}}
   car.querySelectorAll('.scard.on').forEach(x=>x.classList.remove('on'));best.classList.add('on');
-  const k=car.dataset.car,id=best.dataset.cid;if(S.shuf.slots[k]!==id){S.shuf.slots[k]=id;S.shuf.shownAt=Date.now()}
+  const k=car.dataset.car,id=best.dataset.cid;if(S.shuf.slots[k]!==id){S.shuf.slots[k]=id;S.shuf.shownAt=Date.now();fixLayers(k)}
+}
+function fixLayers(k){
+  const o=k==='top'?'outer':k==='outer'?'top':null,sl=S.shuf.slots;if(!o||!sl[o]||slotOK(o,sl[o],sl))return;
+  const top=S.items.get(k==='top'?sl.top:sl.outer);
+  if(S.shuf.locks.has(o)){toast(k==='top'?`${top?.name||'This top'} is loose, and the locked jacket is fitted`:`This jacket is fitted, and the locked top is loose`);return}
+  const cand=(S.shuf.pools[o]||[]).filter(x=>S.items.has(x)&&slotOK(o,x,sl));
+  if(!cand.length){toast(k==='top'?'No jacket in this closet fits over that top':'No top here fits under that jacket');return}
+  const W=wear().items,pick=weightedPick(cand.map(x=>[x,S.items.get(x)]),W,Object.values(sl).filter(x=>x!==sl[o]),{cw:coWear(),t:taste()});
+  sl[o]=pick;const car=document.querySelector(`[data-car="${o}"]`);if(car)centreCar(car,true);
 }
 function wireShuffle(){
   const sh=S.shuf,prev=sh._prev;sh._prev=null;
@@ -1306,7 +1315,8 @@ function itemSheet(id){
   // per-slot photo state: id = stored image, blob = new unsaved image, cleared = user removed it
   const P={front:{id:it?.imageId||null,cutout:!!it?.cutout,blob:null},back:{id:it?.backImageId||null,cutout:!!it?.backCutout,blob:null}};
   const cutMsg=sh.querySelector('#cutMsg');
-  const TAG={seasons:new Set(it?.seasons||[]),dress:it?.dress??null,touched:false};wireTags(sh,TAG);
+  const TAG={seasons:new Set(it?.seasons||[]),dress:it?.dress??null,cut:it?.cut||null,touched:false};wireTags(sh,TAG);
+  {const ts=sh.querySelector('#fType'),cr=sh.querySelector('#cutRow');if(ts&&cr)ts.addEventListener('change',()=>{cr.hidden=!CUT_GROUPS.includes(GROUP_OF[ts.value])})}
   const PR={needs:new Set(it?.needs||[]),goes:new Set(id?goesOf(id):[]),no:new Set(it?.goesNo||[])};wirePairs(sh,id,PR);
   sh.querySelectorAll('[data-slot]').forEach(slot=>{
     const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),clr=slot.querySelector('[data-clear]');
@@ -1387,6 +1397,7 @@ function itemSheet(id){
     }
     if(TAG.touched||it?.seasons!==undefined)data.seasons=SEASONS.map(x=>x[0]).filter(k=>TAG.seasons.has(k));
     if(TAG.dress!=null)data.dress=TAG.dress;
+    if(TAG.cut)data.cut=TAG.cut;
     data.needs=[...PR.needs].filter(x=>S.items.has(x));data.goes=[...PR.goes].filter(x=>S.items.has(x));data.goesNo=[...PR.no];
     const sid=id||newId();
     await saveDoc('items',sid,{...(it||{}),...data});
@@ -2011,7 +2022,7 @@ function guessDress(i){
 // --- the editor section ---
 function tagsHTML(i){
   const sel=new Set(i?.seasons||[]),d=i?.dress??null;
-  return `<div class="field"><span class="lbl">Seasons <small class="muted" style="text-transform:none;letter-spacing:0">(none picked = any season)</small></span>
+  return cutHTML(i,CUT_GROUPS.includes(groupOf(i)))+`<div class="field"><span class="lbl">Seasons <small class="muted" style="text-transform:none;letter-spacing:0">(none picked = any season)</small></span>
       <div class="seasons" role="group" aria-label="Seasons">${SEASONS.map(([k,l])=>`<button type="button" class="sea" data-sea="${k}" aria-pressed="${sel.has(k)}">${seasonIcon(k)}<small>${l}</small></button>`).join('')}</div></div>
     <div class="field"><label for="fDress">How dressy <b id="dressV" class="dressv">${d?`${d} · ${dressWord(d)}`:'Not rated'}</b></label>
       <input type="range" id="fDress" min="1" max="10" step="1" value="${d||5}" class="${d?'':'unset'}" style="--fill:${d?`calc(${(d-1)/9*100}% + ${(.5-(d-1)/9)*26}px)`:'0%'}" aria-valuetext="${d?`${d}, ${dressWord(d)}`:'Not rated'}">
@@ -2019,6 +2030,7 @@ function tagsHTML(i){
       <div class="dressends"><small>Working on the car</small><small>Black-tie</small></div></div>`;
 }
 function wireTags(sh,state){
+  sh.querySelectorAll('[data-cut]').forEach(b=>b.addEventListener('click',()=>{state.cut=b.dataset.cut;sh.querySelectorAll('[data-cut]').forEach(x=>x.setAttribute('aria-pressed',x===b));state.touched=true}));
   sh.querySelectorAll('[data-sea]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.sea;state.seasons.has(k)?state.seasons.delete(k):state.seasons.add(k);b.setAttribute('aria-pressed',state.seasons.has(k));state.touched=true}));
   const r=sh.querySelector('#fDress'),v=sh.querySelector('#dressV');
   r.addEventListener('input',()=>{state.dress=Number(r.value);r.classList.remove('unset');dressFill(r,state.dress);v.textContent=`${r.value} · ${dressWord(state.dress)}`;r.setAttribute('aria-valuetext',`${r.value}, ${dressWord(state.dress)}`);state.touched=true});
@@ -2066,11 +2078,11 @@ function quickTagSheet(){
   const show=()=>{
     while(n<queue.length&&(!S.items.has(queue[n][0])||isTagged(S.items.get(queue[n][0]))))n++;
     if(n>=queue.length){box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>All tagged</h2><p>${done?`You tagged ${done} piece${done===1?'':'s'}. `:''}Shuffle now picks for the season and the occasion.</p></div><div class="btns"><button class="btn primary" type="button" data-qtclose>Done</button></div>`;return}
-    const[id,i]=queue[n],st={seasons:new Set(guessSeasons(i)),dress:guessDress(i)};
+    const[id,i]=queue[n],st={seasons:new Set(guessSeasons(i)),dress:guessDress(i),cut:i.cut||null};
     box.innerHTML=`<p class="muted" style="margin:0;font-size:13px"><b>Seasons &amp; dressiness</b> · ${n+1} of ${queue.length} · best guesses are filled in, fix anything that’s off</p>
       <div class="dcph ${phCls(i)}">${thumb(i)}</div><h3 style="margin:0;text-align:center">${esc(i.name||'Piece')}</h3>
       <div class="field"><label for="qtType">Category</label><select id="qtType">${typeOptions(typeOf(i))}</select></div>
-      ${tagsHTML({seasons:[...st.seasons],dress:st.dress})}
+      ${tagsHTML({...i,seasons:[...st.seasons],dress:st.dress})}
       <div class="dcbtns"><button class="btn primary" type="button" data-qt="save">Save &amp; next</button><button class="btn" type="button" data-qt="skip">Skip</button></div>`;
     wireTags(box,st);box._st=st;
   };
@@ -2078,7 +2090,7 @@ function quickTagSheet(){
     if(e.target.closest('[data-qtclose]')){closeSheet();return}
     const b=e.target.closest('[data-qt]');if(!b||b.disabled)return;
     if(b.dataset.qt==='save'){const[id]=queue[n],it=S.items.get(id),st=box._st;b.disabled=true;
-      const ty=box.querySelector('#qtType')?.value||it.type;try{await saveDoc('items',id,{...it,type:ty,group:GROUP_OF[ty]||it.group,seasons:SEASONS.map(s=>s[0]).filter(k=>st.seasons.has(k)),dress:st.dress});done++}catch(err){toast('Couldn’t save. Please try again.');b.disabled=false;return}}
+      const ty=box.querySelector('#qtType')?.value||it.type;try{await saveDoc('items',id,{...it,type:ty,group:GROUP_OF[ty]||it.group,seasons:SEASONS.map(s=>s[0]).filter(k=>st.seasons.has(k)),dress:st.dress,...(st.cut?{cut:st.cut}:{})});done++}catch(err){toast('Couldn’t save. Please try again.');b.disabled=false;return}}
     n++;show();
   });
   show();
@@ -2244,6 +2256,38 @@ function maybeSheet(){
     else{await saveDoc('items',id,{...rest,fate:'donate',fateAt:Date.now()});toast(`${it.name||'Piece'} is on the way out. Find it under Stats › Declutter › Leaving.`)}
     show()})});
   show();
+}
+
+
+/* ---------- fit, for layering: a loose top (a hoodie) doesn't go under a fitted jacket ----------
+   item.cut = 'fitted' | 'regular' | 'loose' (tops and jackets); unset = a guess from the name and type */
+const CUTS=[['fitted','Fitted'],['regular','Regular'],['loose','Loose']];
+const CUT_GROUPS=['Tops','Bottoms','Jackets'];
+function guessCut(i){
+  const n=(i?.name||'').toLowerCase(),t=typeOf(i);
+  if(/oversized|chunky|baggy|balloon|puffer|hoodie|sweatshirt|fleece|teddy|shacket|flannel|longline|long cardigan|long knit cardigan|boyfriend|wide|cargo|jogger|sweatpant|track pant|parachute|palazzo|barrel/.test(n))return 'loose';
+  if(/fitted|bodysuit|turtleneck|ribbed|cami\b|corset|bustier|bralette|leather|moto|blazer|waistcoat|tube|skinny|legging|pencil|bike short/.test(n))return 'fitted';
+  return {Leggings:'fitted',Sweatpants:'loose',Hoodies:'loose',Crewnecks:'loose',Coats:'loose',Vests:'loose',Bodysuits:'fitted','Tank tops':'fitted',Bras:'fitted',Blazers:'fitted'}[t]||'regular';
+}
+const cutOf=i=>i?.cut||guessCut(i);
+// can this top go under this jacket?
+function cutBalance(a,b){
+  const ga=groupOf(a),gb=groupOf(b);if(!((ga==='Tops'&&gb==='Bottoms')||(ga==='Bottoms'&&gb==='Tops')))return 1;
+  const x=cutOf(a),y=cutOf(b);
+  if(x==='loose'&&y==='loose')return .35;if((x==='loose'&&y==='fitted')||(x==='fitted'&&y==='loose'))return 2;if(x==='fitted'&&y==='fitted')return .8;return 1;
+}
+const layerOK=(top,outer)=>!(top&&outer&&cutOf(top)==='loose'&&cutOf(outer)==='fitted');
+// is piece `id` in row `k` fine with what's already in the other rows?
+function slotOK(k,id,slots){
+  const it=S.items.get(id);
+  if(k==='outer'){const t=S.items.get(slots.top);return layerOK(t,it)}
+  if(k==='top'){const o=S.items.get(slots.outer);return layerOK(it,o)}
+  return true;
+}
+function cutHTML(i,show){
+  const c=cutOf(i);
+  return `<div class="field" id="cutRow" ${show?'':'hidden'}><span class="lbl">Fit <small class="muted" style="text-transform:none;letter-spacing:0">(Shuffle pairs loose with fitted, and never puts a loose top under a fitted jacket)</small></span>
+    <div class="fits" role="group" aria-label="Fit">${CUTS.map(([k,l])=>`<button type="button" class="sea" data-cut="${k}" aria-pressed="${c===k}"><small>${l}</small></button>`).join('')}</div></div>`;
 }
 
 /* ---------- boot ---------- */
