@@ -339,6 +339,10 @@ input[type=date]{display:block;width:100%;min-width:0;max-width:100%;box-sizing:
 .pchip button{all:unset;cursor:pointer;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--muted);font-size:13px}
 .pchip.sug{border-style:dashed}.pchip button[data-sugadd]{color:var(--accent);font-weight:700;font-size:16px}
 .pairpick{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.plinks{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.touch{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+#touchC{width:100%;height:auto;max-height:60vh;object-fit:contain;border-radius:10px;cursor:crosshair;touch-action:manipulation;
+  background:conic-gradient(#e6e6ea 25%,#fff 0 50%,#e6e6ea 0 75%,#fff 0) 0 0/16px 16px}
 .syncpill{flex:none;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 11px 0 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
 .syncpill svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .syncpill.ok svg{color:var(--ok)}.syncpill.pending,.syncpill.busy{color:var(--accent)}.syncpill.err{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}

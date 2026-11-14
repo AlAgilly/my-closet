@@ -163,7 +163,8 @@ async function shrink(file){
 // 1) Background = see-through pixels connected to the image border. 2) Small see-through islands
 // enclosed by the item become solid; large ones (e.g. inside a bag handle) stay as background.
 // 3) Semi-see-through pixels more than 3px from the background become solid (soft outer edges kept).
-function cleanAlpha(a,w,h){
+function cleanAlpha(a,w,h,px,sc){
+  const bgLike=(px&&sc&&sc.bg&&sc.item&&labDist(sc.bg,sc.item)>=25)?idx=>{const L=[];const step=Math.max(1,Math.floor(idx.length/400));for(let k=0;k<idx.length;k+=step){const o=idx[k]*4;L.push([px[o],px[o+1],px[o+2]])}const m=[0,1,2].map(c=>L.map(p=>p[c]).sort((x,y)=>x-y)[L.length>>1]);return labDist(toLab(...m),sc.bg)<12}:null;
   const N=w*h,bg=new Uint8Array(N),q=new Int32Array(N);let qh=0,qt=0;
   const push=i=>{if(!bg[i]&&a[i]<128){bg[i]=1;q[qt++]=i}};
   for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
@@ -177,7 +178,8 @@ function cleanAlpha(a,w,h){
       if(x<w-1&&!seen[i+1]&&a[i+1]<128){seen[i+1]=1;q[qt++]=i+1}
       if(i>=w&&!seen[i-w]&&a[i-w]<128){seen[i-w]=1;q[qt++]=i-w}
       if(i<N-w&&!seen[i+w]&&a[i+w]<128){seen[i+w]=1;q[qt++]=i+w}}
-    if(qt<=maxHole)for(let k=0;k<qt;k++)a[q[k]]=255;else for(let k=0;k<qt;k++)bg[q[k]]=1;
+    const isBg=qt>maxHole||(bgLike&&qt>12&&bgLike(Array.from(q.subarray(0,qt))));
+    if(!isBg)for(let k=0;k<qt;k++)a[q[k]]=255;else for(let k=0;k<qt;k++)bg[q[k]]=1;
   }
   let near=bg;
   for(let r=0;r<3;r++){const nx=near.slice();for(let i=0;i<N;i++){if(near[i])continue;const x=i%w;if((x>0&&near[i-1])||(x<w-1&&near[i+1])||(i>=w&&near[i-w])||(i<N-w&&near[i+w]))nx[i]=1}near=nx}
@@ -217,13 +219,48 @@ async function ml(op,args,status){
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
 // let the screen draw (status text, thumbnails, scrolled rows) before the next heavy step
 const paintPause=()=>new Promise(r=>{let done=false;const go=()=>{if(!done){done=true;setTimeout(r,60)}};requestAnimationFrame(go);setTimeout(go,150)});
+// colour of the photo's background (where the model is sure there's no item) and of the item itself
+function sceneColours(a,px,N){
+  const bg=[],it=[];const step=Math.max(1,Math.floor(N/40000));
+  for(let i=0;i<N;i+=step){const o=i*4;if(a[i]<20)bg.push([px[o],px[o+1],px[o+2]]);else if(a[i]>250)it.push([px[o],px[o+1],px[o+2]])}
+  const med=arr=>arr.length?[0,1,2].map(k=>arr.map(p=>p[k]).sort((x,y)=>x-y)[arr.length>>1]):null;
+  const b=med(bg),t=med(it);return{bg:b&&toLab(...b),item:t&&toLab(...t)};
+}
+const labDist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+// Remove faint background haze stuck to the item's edge: starting from the background, eat into pixels the model
+// wasn't fully sure about that are the background's colour. Skipped when the item itself is close to the background colour.
+function eatHaze(a,px,w,h,sc){
+  if(!sc.bg||!sc.item||labDist(sc.bg,sc.item)<25)return;
+  const N=w*h,q=new Int32Array(N),seen=new Uint8Array(N);let qh=0,qt=0;
+  const near=i=>{const o=i*4;return labDist(toLab(px[o],px[o+1],px[o+2]),sc.bg)<14};
+  for(let i=0;i<N;i++)if(a[i]<128){seen[i]=1;q[qt++]=i}
+  while(qh<qt){const i=q[qh++],x=i%w;
+    for(const j of[x>0?i-1:-1,x<w-1?i+1:-1,i-w,i+w]){if(j<0||j>=N||seen[j])continue;seen[j]=1;if(a[j]<245&&near(j)){a[j]=0;q[qt++]=j}}}
+}
+// Soft edges carry some of the old background colour (a light halo on dark clothes). Give each see-through-ish
+// edge pixel the colour of the solid fabric next to it, keeping its softness.
+function defringe(px,w,h){
+  const N=w*h,known=new Uint8Array(N);let todo=[];
+  for(let i=0;i<N;i++){const al=px[i*4+3];if(al>=250)known[i]=1;else if(al>0)todo.push(i)}
+  for(let pass=0;pass<4&&todo.length;pass++){
+    const next=[],fill=[];
+    for(const i of todo){const x=i%w,y=(i/w)|0;let r=0,g=0,b=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=w||yy>=h)continue;const j=yy*w+xx;if(known[j]){r+=px[j*4];g+=px[j*4+1];b+=px[j*4+2];n++}}
+      if(n)fill.push([i,r/n,g/n,b/n]);else next.push(i)}
+    for(const[i,r,g,b]of fill){px[i*4]=r;px[i*4+1]=g;px[i*4+2]=b;known[i]=1}
+    todo=next;
+  }
+}
 async function removeBg(blob,status){
   const{mask,w,h}=await ml('rmbg',{blob},status);
   const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
   const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
   g.drawImage(im,0,0,w,h);await yieldUI();
-  cleanAlpha(mask,w,h);await yieldUI();
-  const d=g.getImageData(0,0,w,h);for(let i=0;i<mask.length;i++)d.data[4*i+3]=mask[i];g.putImageData(d,0,0);
+  const d=g.getImageData(0,0,w,h),sc=sceneColours(mask,d.data,w*h);
+  eatHaze(mask,d.data,w,h,sc);await yieldUI();
+  cleanAlpha(mask,w,h,d.data,sc);await yieldUI();
+  for(let i=0;i<mask.length;i++)d.data[4*i+3]=mask[i];
+  defringe(d.data,w,h);g.putImageData(d,0,0);
   return await trimToBlob(c);
 }
 
@@ -1046,6 +1083,34 @@ function typeSelect(cur){
     <optgroup label="Your own">${[...new Set([...S.items.values()].map(typeOf).filter(t=>!GROUP_OF[t]))].map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}${!known&&![...S.items.values()].some(i=>i.type===cur)?`<option selected>${esc(cur)}</option>`:''}<option value="__new">New type…</option></optgroup></select>`;
 }
 
+// Touch up a cut-out: tapping a spot erases the connected patch of similar colour (leftover background).
+async function touchUp(sh,st,done){
+  const blob=st.blob||await idbGet('images',st.id);if(!blob){toast('That photo isn’t on this device yet.');return}
+  const im=await loadImage(URL.createObjectURL(blob));URL.revokeObjectURL(im.src);
+  const W=im.naturalWidth,H=im.naturalHeight,work=document.createElement('canvas');work.width=W;work.height=H;
+  const wg=work.getContext('2d');wg.drawImage(im,0,0);let img=wg.getImageData(0,0,W,H);const hist=[];
+  const box=sh.querySelector('#touch'),view=sh.querySelector('#touchC'),undo=sh.querySelector('#tUndo');
+  const s=Math.min(1,900/Math.max(W,H));view.width=Math.round(W*s);view.height=Math.round(H*s);
+  const paint=()=>{wg.putImageData(img,0,0);const g=view.getContext('2d');g.clearRect(0,0,view.width,view.height);g.drawImage(work,0,0,view.width,view.height);undo.disabled=!hist.length};
+  paint();box.hidden=false;box.scrollIntoView({block:'center',behavior:'smooth'});
+  view.onclick=e=>{
+    const r=view.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*W),y=Math.floor((e.clientY-r.top)/r.height*H);
+    const d=img.data,N=W*H,seed=y*W+x;if(x<0||y<0||x>=W||y>=H||d[seed*4+3]<30){toast('That spot is already see-through.');return}
+    const c0=toLab(d[seed*4],d[seed*4+1],d[seed*4+2]);
+    hist.push(new Uint8ClampedArray(d));if(hist.length>4)hist.shift();
+    const q=new Int32Array(N),seen=new Uint8Array(N);let qh=0,qt=0;q[qt++]=seed;seen[seed]=1;
+    while(qh<qt){const i=q[qh++],o=i*4;d[o+3]=0;const xx=i%W;
+      for(const j of[xx>0?i-1:-1,xx<W-1?i+1:-1,i-W,i+W]){if(j<0||j>=N||seen[j])continue;seen[j]=1;const p=j*4;if(d[p+3]<30)continue;
+        if(labDist(toLab(d[p],d[p+1],d[p+2]),c0)<16)q[qt++]=j;else if(d[p+3]<200)d[p+3]=0}}
+    paint();
+  };
+  undo.onclick=()=>{if(!hist.length)return;img=new ImageData(hist.pop(),W,H);paint()};
+  sh.querySelector('#tCancel').onclick=()=>{box.hidden=true;view.onclick=null};
+  sh.querySelector('#tDone').onclick=async()=>{
+    view.onclick=null;box.hidden=true;if(!hist.length)return;
+    wg.putImageData(img,0,0);try{st.blob=await trimToBlob(work);st.cutout=true;done();toast('Touched up. Save to keep it.')}catch(err){toast('Nothing left to keep. Try Undo next time.')}
+  };
+}
 function itemSheet(id){
   const it=id?S.items.get(id):null;if(id&&!it)return;
   const r=id?wear().items[id]:null,l=last(r),wears=r?.worn.length||0,price=Number(it?.price);
@@ -1060,9 +1125,11 @@ function itemSheet(id){
       <div class="pslot" data-slot="${k}">
         <label class="photo"><div class="ph${cut&&URLS.has(pid)?' cut':''}" data-prev>${pid&&URLS.has(pid)?img(pid):`<span class="hint">Add ${l.toLowerCase()} photo</span>`}</div><input type="file" accept="image/*" data-file aria-label="${l} photo"></label>
         <div class="plabel">${l}</div>
-        <button class="linkbtn" type="button" data-clear ${pid&&URLS.has(pid)?'':'hidden'}>Remove photo</button>
+        <span class="plinks"><button class="linkbtn" type="button" data-touch ${pid&&URLS.has(pid)&&cut?'':'hidden'}>Touch up</button><button class="linkbtn" type="button" data-clear ${pid&&URLS.has(pid)?'':'hidden'}>Remove photo</button></span>
       </div>`).join('')}</div>
     <p class="muted" id="cutMsg" aria-live="polite" style="margin:0;font-size:13px"></p>
+    <div class="touch" id="touch" hidden><p class="muted" style="margin:0;font-size:13px">Tap any leftover background to erase it. Tap again on other bits, or Undo.</p>
+      <canvas id="touchC"></canvas><div class="btns"><button class="btn sm primary" type="button" id="tDone">Done</button><button class="btn sm" type="button" id="tUndo" disabled>Undo</button><button class="btn sm" type="button" id="tCancel">Cancel</button></div></div>
     <div class="field"><label for="fName">Name</label><input id="fName" value="${esc(it?.name)}" placeholder="Black straight-leg jeans" autocomplete="off"></div>
     <div class="two">
       <div class="field"><label for="fType">Type</label>${typeSelect(it?.type)}</div>
@@ -1100,7 +1167,7 @@ function itemSheet(id){
     const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),clr=slot.querySelector('[data-clear]');
     const show=()=>{const has=st.blob||st.id;prev.className='ph'+(has&&st.cutout?' cut':'');
       prev.innerHTML=st.blob?`<img src="${URL.createObjectURL(st.blob)}" alt="">`:st.id?img(st.id):`<span class="hint">Add ${k} photo</span>`;
-      clr.hidden=!has;cutMsg.textContent=''};
+      clr.hidden=!has;const tb=slot.querySelector('[data-touch]');if(tb)tb.hidden=!(has&&st.cutout);cutMsg.textContent=''};
     slot.querySelector('[data-file]').addEventListener('change',async e=>{
       const f=e.target.files[0];e.target.value='';if(!f)return;
       try{const r=await shrink(f);st.blob=r.blob;st.cutout=r.cutout;show()}catch(err){toast('That file type isn’t supported. Try a JPEG or PNG.');return}
@@ -1121,6 +1188,7 @@ function itemSheet(id){
       }
     });
     clr.addEventListener('click',()=>{st.blob=null;st.id=null;st.cutout=false;show()});
+    slot.querySelector('[data-touch]')?.addEventListener('click',()=>touchUp(sh,st,show));
   });
   const tSel=sh.querySelector('#fType');tSel.addEventListener('change',()=>{sh.querySelector('#newTypeRow').hidden=tSel.value!=='__new'});
   // colour state: main (plain name + exact shade) and a set of secondary names
