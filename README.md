@@ -21,7 +21,7 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
 
 ## Credits
 
-- Blouses, Crewnecks, Leggings, Rompers, Bras, Underwear, Tights and Hair accessories icons are drawn for this app in the same line style.
+- Blouses, Leggings, Rompers, Tights and Hair accessories icons are drawn for this app in the same line style.
 - Icons from [Flaticon](https://www.flaticon.com), free with attribution, redrawn at one uniform (thin) line width:
   - Activewear: [Sportwear](https://www.flaticon.com/free-icon/sportwear_18842964) by Adury5711
   - Bags: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish
@@ -35,7 +35,7 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Heels: [High heels](https://www.flaticon.com/free-icon/high-heels_1077995) by Magnific
   - Glasses: [Reading eyeglasses](https://www.flaticon.com/free-icon/reading-eyeglasses_27106) by Magnific
   - Hats: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
-  - Jackets: [Jacket](https://www.flaticon.com/free-icon/jacket_2806119) by Victoruler
+  - Jackets: [Jacket](https://www.flaticon.com/free-icon/jacket_5758286) by Ehtisham Abid
   - Jeans: [Jeans](https://www.flaticon.com/free-icon/jeans_492175) by Magnific
   - Jewelry: [Necklace](https://www.flaticon.com/free-icon/necklace_775385) by Smashicons
   - Jumpsuits: [Jumpsuit](https://www.flaticon.com/free-icon/jumpsuit_2290421) by photo3idea_studio
@@ -46,15 +46,19 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Sweaters: [Sweater](https://www.flaticon.com/free-icon/sweater_88802) by Magnific
   - Hoodies: [Hoodie](https://www.flaticon.com/free-icon/hoodie_9431851) by juicy_fish
   - All: [App](https://www.flaticon.com/free-icon/app_13701579) by Erifqi Zetiawan
-  - Tops group: [Shirt](https://www.flaticon.com/free-icon/shirt_695593) by Dreamstale
-  - Bottoms group: [Shorts](https://www.flaticon.com/free-icon/shorts_586444) by Magnific
+  - Tops group: [Upper garment](https://www.flaticon.com/free-icon/upper-garment_11179477) by Yuluck
+  - Bottoms group: [Flare Pants](https://www.flaticon.com/free-icon/flare-pants_88772) by Magnific
+  - Sweatpants: [Sports](https://www.flaticon.com/free-icon/sports_13945628) by Nadiinko
+  - Crewnecks: [Shirt](https://www.flaticon.com/free-icon/shirt_10934966) by Ains
+  - Bras: [Sport bra](https://www.flaticon.com/free-icon/sport-bra_18479314) by Irakun
+  - Underwear: [Underwear](https://www.flaticon.com/free-icon/underwear_2348165) by Bartama Graphic
   - Full length group: [Dress](https://www.flaticon.com/free-icon/dress_2806167) by Victoruler
-  - Long sleeves: [Shirt](https://www.flaticon.com/free-icon/shirt_4643360) by Magnific
+  - Long sleeves: [Shirt](https://www.flaticon.com/free-icon/shirt_17071121) by Nur syifa fauziah
   - Accessories group: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
   - Short sleeves: [T shirt](https://www.flaticon.com/free-icon/t-shirt_11205893) by JoeKanaka
   - Tank tops: [Tanktop](https://www.flaticon.com/free-icon/tanktop_5095867) by iconnut
   - Vests: [Waistcoat](https://www.flaticon.com/free-icon/waistcoat_4343241) by bqlqn
-  - Other: [Categories](https://www.flaticon.com/free-icon/categories_7554470) by Nabila30
+  - Other: [More](https://www.flaticon.com/free-icon/more_1477110) by Magnific
   - App icon: [Clothes hanger](https://www.flaticon.com/free-icon/clothes-hanger_3159614) by Magnific
 - Background removal: [RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4) by BRIA AI (free for non-commercial use), run with [Transformers.js](https://github.com/huggingface/transformers.js).
 - Item recognition: [CLIP](https://huggingface.co/Xenova/clip-vit-base-patch32) (OpenAI, MIT License) via Transformers.js.
