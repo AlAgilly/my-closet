@@ -6,11 +6,10 @@ const GROUPS=[
   ['Bottoms',['Jeans','Pants','Skirts','Leggings','Shorts']],
   ['Full length',['Dresses','Overalls','Rompers','Jumpsuits']],
   ['Jackets',['Cardigans','Jackets','Coats','Vests','Blazers']],
-  ['Undergarments',['Bras','Underwear','Tights']],
-  ['Shoes',['Footwear','Heels']],
-  ['Accessories',['Bags','Belts','Glasses','Hats','Jewelry']],
+  ['Accessories',['Footwear','Heels','Bags','Jewelry','Hats','Glasses','Belts','Bras','Underwear','Tights']],
   ['Other',['Activewear','Other']]];
-const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Undergarments'];
+const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Accessories'];
+const SHOE_T=['Footwear','Heels'],UNDER_T=['Bras','Underwear','Tights'];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
@@ -537,7 +536,7 @@ const LAYER=['Jackets','Bottoms','Full length','Tops','Shoes','Bags','Accessorie
 function autoLayout(ids,prev={}){
   const out={},count={};
   let z=Math.max(0,...Object.values(prev).map(p=>p.z||0));
-  const slotG=i=>typeOf(i)==='Bags'?'Bags':groupOf(i);
+  const slotG=i=>{const t=typeOf(i);return t==='Bags'?'Bags':SHOE_T.includes(t)?'Shoes':UNDER_T.includes(t)?'Undergarments':groupOf(i)};
   const list=ids.filter(id=>S.items.has(id)).sort((a,b)=>LAYER.indexOf(slotG(S.items.get(a)))-LAYER.indexOf(slotG(S.items.get(b))));
   for(const id of list){
     const g=slotG(S.items.get(id));count[g]=(count[g]||0)+1;
@@ -618,9 +617,9 @@ function closetView(){
 const closetItems=()=>[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
 function groupRow(all){
   const cnt={};for(const[,i]of all){const g=groupOf(i);cnt[g]=(cnt[g]||0)+1}
-  const show=[...MAIN_GROUPS,'Shoes','Accessories',...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&g!=='Shoes'&&g!=='Accessories'&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
+  const show=[...MAIN_GROUPS,...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
   if(S.group!=='All'&&!show.includes(S.group))S.group='All';
-  return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g==='Undergarments'?'Under­garments':g,cnt[g]||0,'group')).join('');
+  return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g,cnt[g]||0,'group')).join('');
 }
 const GROUP_OF_GROUP=g=>GROUPS.some(x=>x[0]===g);
 function subcatsHTML(all){
@@ -726,7 +725,7 @@ const ICON={
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Undergarments:'bras',Shoes:'heels',Accessories:'hats',Other:'other'};
+const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Accessories:'hats',Other:'other'};
 function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
@@ -788,7 +787,7 @@ const OCCASIONS=[['','Any occasion',1,10],['casual','Casual',1,4],['everyday','E
 const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
-  const inPool=i=>group==='Bags'?typeOf(i)==='Bags':groupOf(i)===group;
+  const inPool=i=>group==='Shoes'?SHOE_T.includes(typeOf(i)):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(typeOf(i))&&!UNDER_T.includes(typeOf(i)):groupOf(i)===group;
   const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
@@ -1646,7 +1645,7 @@ const SEG_REGIONS=[
   {key:'dress',label:'Dress',cls:[7],min:.02,ok:inG('Full length')},
   {key:'pants',label:'Bottoms',cls:[6],min:.01,ok:i=>(inG('Bottoms')(i)&&!isT('Skirts')(i))||isT('Activewear','Jumpsuits')(i)},
   {key:'skirt',label:'Skirt',cls:[5],min:.008,ok:isT('Skirts','Shorts')},
-  {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:inG('Shoes'),all:true},
+  {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:isT('Footwear','Heels'),all:true},
   {key:'bag',label:'Bag',cls:[16],min:.003,ok:isT('Bags')},
   {key:'hat',label:'Hat',cls:[1],min:.003,ok:isT('Hats')},
   {key:'glasses',label:'Glasses',cls:[3],min:.001,ok:isT('Glasses')}];
