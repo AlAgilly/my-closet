@@ -20,22 +20,34 @@ const LEGACY={cream:'beige',lightblue:'blue',olive:'green',burgundy:'maroon',gol
 const genericName=c=>{c=(c||'').trim().toLowerCase();return GEN_HEX[c]?c:LEGACY[c]||c};
 const hexToRgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
 const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
-function rgbToName(r,g,b){
-  r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,dl=mx-mn;
-  const s=dl===0?0:dl/(1-Math.abs(2*l-1));let h=0;
-  if(dl){h=mx===r?((g-b)/dl)%6:mx===g?(b-r)/dl+2:(r-g)/dl+4;h=(h*60+360)%360}
-  if(l<.13&&!(l>=.09&&s>=.45&&h>=200&&h<250))return 'black';
-  if(s<.12||(s<.2&&l>.25&&l<.85))return l>.78?'white':l<.24?'black':'grey';
-  if(l>.93&&s<.35)return 'white';
-  if(h>=15&&h<50){if(s>=.6&&l>=.35&&l<=.78)return h<40?'orange':'yellow';return l<.4?'brown':'beige'}
-  if(h<15||h>=345){if(l>.72)return 'pink';if(l<.33&&s>=.45)return 'maroon';return l<.3?'brown':'red'}
-  if(h<75){if(l<.32)return 'green';return (s<.45&&l>.6)||l>.85?'beige':'yellow'}
-  if(h<170)return 'green';
-  if(h<250)return l<.32?'navy':'blue';
-  if(h<290)return 'purple';
-  if(h>=320&&l<.3&&s>=.35)return 'maroon';
-  return 'pink';
+// colours are named in Lab space (how eyes see colour): near-neutral shades by lightness (and a blue cast = denim / light blue),
+// everything else by the nearest of ~50 reference shades (olive, sage, camel, burgundy, coral…) that each map to one of the plain colours
+const SHADES=[['beige','beige',79.6,1.6,19.0],['oatmeal','beige',76.4,1.0,13.9],['taupe','beige',60.6,3.8,15.0],['tan','beige',69.7,7.5,28.5],['blush','beige',81.6,9.6,12.5],['camel','brown',55.8,16.0,33.4],['caramel','brown',51.5,22.5,48.6],['mocha','brown',49.2,10.2,16.2],['rust','brown',41.1,30.8,36.7],['brown','brown',29.4,11.5,17.9],['red','red',44.2,64.3,40.0],['cherry','red',37.3,59.2,36.8],['burgundy','maroon',23.5,36.0,13.2],['maroon','maroon',19.8,30.9,10.5],['plum','maroon',19.3,24.5,-1.7],['coral','pink',57.3,50.8,19.7],['pink','pink',74.2,32.6,-0.3],['light_pink','pink',83.8,16.5,2.9],['dusty_rose','pink',53.4,23.9,2.5],['hot_pink','pink',49.4,73.2,6.3],['fuchsia','pink',41.5,66.3,-13.7],['orange','orange',61.5,40.5,58.2],['mustard','yellow',63.7,9.4,58.5],['gold','yellow',67.9,4.6,53.8],['yellow','yellow',84.8,-4.1,66.0],['butter','yellow',90.8,-6.0,35.6],['lime','yellow',79.1,-20.8,72.3],['olive','green',40.8,-9.7,19.4],['sage','green',75.7,-11.3,14.3],['mint','green',85.8,-17.7,7.4],['green','green',56.6,-45.2,32.6],['bright_green','green',66.4,-56.6,56.1],['forest','green',26.4,-20.1,9.1],['emerald','green',27.7,-21.9,1.8],['teal','blue',35.4,-12.3,-17.1],['light_blue','blue',81.2,-2.2,-13.2],['light_wash','blue',74.0,-2.0,-12.2],['mid_wash','blue',57.3,-1.4,-22.3],['blue','blue',47.0,11.6,-50.0],['slate_blue','blue',45.7,3.9,-24.0],['navy','navy',16.8,6.6,-21.4],['midnight','navy',8.7,4.2,-12.8],['purple','purple',40.3,36.1,-37.0],['lavender','purple',67.8,21.3,-27.1],['deep_red','red',25.9,42.6,26.2],['dark_emerald','green',18.6,-14.3,-2.1],['salmon','pink',71.0,27.5,19.3],['dark_green','green',14.8,-10.3,4.2],['hunter','green',24.5,-15.1,7.1],['dark_teal','blue',23.2,-9.5,-11.5]];
+function rgbToLab(r,g,b){
+  const f=v=>{v/=255;return v>.04045?((v+.055)/1.055)**2.4:v/12.92};r=f(r);g=f(g);b=f(b);
+  const X=(.4124*r+.3576*g+.1805*b)/.95047,Y=.2126*r+.7152*g+.0722*b,Z=(.0193*r+.1192*g+.9505*b)/1.08883;
+  const k=t=>t>.008856?Math.cbrt(t):7.787*t+16/116,fx=k(X),fy=k(Y),fz=k(Z);return[116*fy-16,500*(fx-fy),200*(fy-fz)];
 }
+function labToRgb(L,a,b){
+  const fy=(L+16)/116,fx=fy+a/500,fz=fy-b/200,k=t=>t**3>.008856?t**3:(t-16/116)/7.787;
+  const X=k(fx)*.95047,Y=k(fy),Z=k(fz)*1.08883,g=v=>255*Math.min(1,Math.max(0,v>.0031308?1.055*v**(1/2.4)-.055:12.92*v));
+  return[g(3.2406*X-1.5372*Y-.4986*Z),g(-.9689*X+1.8758*Y+.0415*Z),g(.0557*X-.204*Y+1.057*Z)];
+}
+// -> [shade, plain colour]
+function labName([L,a,b]){
+  const C=Math.hypot(a,b);
+  if(L<24&&C<8)return b<=-5?['navy','navy']:['black','black'];
+  if(C<7||(L>=84&&C<15&&b>0&&a<6)){
+    if(b<=-4.5&&a<3)return L<30?['navy','navy']:L>62?['light wash','blue']:['mid wash','blue'];
+    if(L>=82)return b>=5?['cream','white']:['white','white'];
+    if(L<22)return['black','black'];
+    return[L<40?'charcoal':L>=72?'light grey':'grey','grey'];
+  }
+  const w=L<35?1.6:1;let best=null,bd=1e9;
+  for(const s of SHADES){const d=Math.hypot(.6*(s[2]-L),w*(s[3]-a),w*(s[4]-b));if(d<bd){bd=d;best=s}}
+  return[best[0].replace('_',' '),best[1]];
+}
+function rgbToName(r,g,b){return labName(rgbToLab(r,g,b))[1]}
 const hexToName=h=>rgbToName(...hexToRgb(h));
 const swatchOf=it=>it?.colourHex||GEN_HEX[genericName(it?.colour)]||okColour(it?.colour);
 const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boolean);
@@ -311,7 +323,7 @@ async function detectType(blob,status,img){
 const A={
   pat:{p:['a plain solid colour {t}','a striped {t}','a plaid {t}','a floral print {t}','a {t} with a big graphic print or logo','a polka dot {t}','a leopard print {t}'],w:['','striped','plaid','floral','graphic','polka-dot','leopard-print'],base:0},
   mat:{p:['a plain cotton {t}','a ribbed knit {t}','a chunky cable knit {t}','a denim {t}','a leather {t}','a shiny satin {t}','a lace {t}','a fuzzy fleece {t}','a corduroy {t}','a sparkly sequin {t}'],w:['','ribbed','cable-knit','denim','leather','satin','lace','fleece','corduroy','sequin'],base:0},
-  crop:{p:['a regular length {t}','a cropped {t} that shows the midriff'],w:['','cropped'],base:0},
+  crop:{p:['a regular length {t}','a cropped {t} that shows the midriff'],w:['','cropped'],base:0,min:.72},
   sleeve:{p:['a short sleeve {t}','a long sleeve {t}','a sleeveless {t}'],w:['short-sleeve','long-sleeve','sleeveless'],base:null},
   neck:{p:['a crew neck {t}','a v-neck {t}','a square neck {t}','a turtleneck {t}','a collared {t}','an off-the-shoulder {t}'],w:['','v-neck','square-neck','turtleneck','collared','off-shoulder'],base:0},
   leg:{p:['straight leg {t}','wide leg {t}','skinny {t}','flared bootcut {t}','cargo {t} with side pockets','baggy loose {t}'],w:['straight-leg','wide-leg','skinny','flared','cargo','baggy'],base:null},
@@ -337,59 +349,51 @@ async function describe(img,type){
     const a=A[k],T=await clipText(k+'|'+noun,a.p.map(x=>x.replace('{t}',noun))),p=clipProbs(img,T);
     const best=p.indexOf(Math.max(...p));
     if(a.word){if(p[best]>=.3)word=a.w[best];continue}
-    if(a.base!==null&&a.base!==undefined){if(best!==a.base&&p[best]>=.5)parts.push(a.w[best])}
+    if(a.base!==null&&a.base!==undefined){if(best!==a.base&&p[best]>=(a.min||.5))parts.push(a.w[best])}
     else if(p[best]>=.4)parts.push(a.w[best]);
   }
   const pat=parts.filter(w=>A.pat.w.includes(w)),rest=parts.filter(w=>!A.pat.w.includes(w)&&!word.includes(w));
   return{word,details:[...pat,...rest].slice(0,3)};
 }
 
-// Main colour, robust to soft shading: exposure is corrected from the brightest part of the item, and mostly colourless
-// items are judged white / grey / black from their overall brightness (so a shaded white top stays white).
+// Main colour: the item's pixels are grouped into 4 colour clusters (in Lab, colour weighted over lightness);
+// the biggest cluster's median is the main colour, other big clusters of a different colour are the secondary ones.
 async function detectColour(blob,cutout){
   const im=await loadImage(URL.createObjectURL(blob));const n=96,c=document.createElement('canvas');c.width=n;c.height=n;const g=c.getContext('2d');
   g.drawImage(im,0,0,n,n);URL.revokeObjectURL(im.src);const d=g.getImageData(0,0,n,n).data;
   const px=[];
   for(let y=0;y<n;y++)for(let x=0;x<n;x++){
     if(!cutout&&(x<n*.28||x>n*.72||y<n*.22||y>n*.78))continue;
-    const i=(y*n+x)*4;if(d[i+3]<200)continue;px.push([d[i],d[i+1],d[i+2]]);
+    const i=(y*n+x)*4;if(d[i+3]<200)continue;px.push(rgbToLab(d[i],d[i+1],d[i+2]));
   }
   if(!px.length)return null;
-  const lum=([r,g2,b])=>.299*r+.587*g2+.114*b;
-  const sorted=px.map(lum).sort((a,b)=>a-b),p95=sorted[Math.floor(sorted.length*.95)]||1;
-  const gain=p95>=150?clamp(242/p95,1,1.3):1; // only brighten light items that look underexposed
-  const adj=px.map(([r,g2,b])=>[Math.min(255,r*gain),Math.min(255,g2*gain),Math.min(255,b*gain)]);
-  const sat=([r,g2,b])=>{const mx=Math.max(r,g2,b)/255,mn=Math.min(r,g2,b)/255,l=(mx+mn)/2;return mx===mn?0:(mx-mn)/(1-Math.abs(2*l-1))};
-  const neutral=adj.filter(p=>sat(p)<.15||(lum(p)>200&&sat(p)<.28)||lum(p)<25);
-  // bins on the exposure-corrected pixels (for chromatic items and secondary colours)
-  const bins=new Map();
-  for(const[r,g2,b]of adj){const k=(r>>5)<<6|(g2>>5)<<3|(b>>5);const e=bins.get(k)||{n:0,r:0,g:0,b:0};e.n++;e.r+=r;e.g+=g2;e.b+=b;bins.set(k,e)}
-  const names=new Map();let total=0;
-  for(const b of bins.values()){const nm=rgbToName(b.r/b.n,b.g/b.n,b.b/b.n);const e=names.get(nm)||{n:0,top:null};e.n+=b.n;if(!e.top||b.n>e.top.n)e.top=b;names.set(nm,e);total+=b.n}
-  if(neutral.length/adj.length>=.6){
-    const ls=neutral.map(lum).sort((a,b)=>a-b),med=ls[Math.floor(ls.length/2)]/255;
-    const name=med>.78?'white':med<.24?'black':'grey';
-    const near=neutral.filter(p=>Math.abs(lum(p)/255-med)<.06),avg=[0,1,2].map(k=>near.reduce((s,p)=>s+p[k],0)/Math.max(1,near.length));
-    const secondary=[...names.entries()].filter(([nm,e])=>!['white','grey','black'].includes(nm)&&e.n/total>=.15).sort((a,b)=>b[1].n-a[1].n).slice(0,2).map(([nm])=>nm);
-    return{name,hex:rgbToHex(...avg),secondary};
+  const W=[1,1.4,1.4],X=px.map(p=>p.map((v,j)=>v*W[j])),k=Math.min(4,X.length);
+  const byL=[...X.keys()].sort((p,q)=>px[p][0]-px[q][0]);let C=[...Array(k)].map((_,j)=>X[byL[Math.round(j*(X.length-1)/Math.max(1,k-1))]].slice());
+  const as=new Int32Array(X.length);
+  for(let it=0;it<12;it++){
+    for(let i=0;i<X.length;i++){let bj=0,bd=1e9;for(let j=0;j<k;j++){const dd=(X[i][0]-C[j][0])**2+(X[i][1]-C[j][1])**2+(X[i][2]-C[j][2])**2;if(dd<bd){bd=dd;bj=j}}as[i]=bj}
+    const S=[...Array(k)].map(()=>[0,0,0,0]);for(let i=0;i<X.length;i++){const s=S[as[i]];s[0]+=X[i][0];s[1]+=X[i][1];s[2]+=X[i][2];s[3]++}
+    C=C.map((c0,j)=>S[j][3]?[S[j][0]/S[j][3],S[j][1]/S[j][3],S[j][2]/S[j][3]]:c0);
   }
-  const ranked=[...names.entries()].sort((a,b)=>b[1].n-a[1].n);
-  const[mainName,m]=ranked[0];
-  return{name:mainName,hex:rgbToHex(m.top.r/m.top.n,m.top.g/m.top.n,m.top.b/m.top.n),secondary:ranked.slice(1).filter(([,e])=>e.n/total>=.15).slice(0,2).map(([nm])=>nm)};
+  const med=v=>{v.sort((p,q)=>p-q);return v[v.length>>1]};
+  const groups=[...Array(k)].map((_,j)=>{const m=px.filter((_,i)=>as[i]===j);return{n:m.length,lab:m.length?[0,1,2].map(t=>med(m.map(p=>p[t]))):null}}).filter(x=>x.n).sort((p,q)=>q.n-p.n);
+  const main=groups[0],[shade,name]=labName(main.lab),hex=rgbToHex(...labToRgb(...main.lab));
+  const secondary=[...new Set(groups.slice(1).filter(x=>x.n/px.length>=.15).map(x=>labName(x.lab)[1]).filter(nm=>nm!==name))].slice(0,2);
+  return{name,shade,hex,secondary,lab:main.lab};
 }
-// colour word for titles: plain name, with light/dark where it helps (light blue, dark green, light grey)
-function colourWord(col){
-  if(!col)return '';const[r,g,b]=hexToRgb(col.hex||GEN_HEX[col.name]||'#808080');const l=(Math.max(r,g,b)+Math.min(r,g,b))/510;
-  if(['white','black','navy','maroon','brown','beige'].includes(col.name))return col.name;
-  if(col.name==='grey')return l>.68?'light grey':l<.36?'dark grey':'grey';
-  return l>.72?'light '+col.name:l<.28?'dark '+col.name:col.name;
+// colour word for titles: the shade (olive, sage, burgundy, cream…); jeans get washes (light wash, dark wash)
+function colourWord(col,type){
+  if(!col)return '';const sh=col.shade||col.name;
+  if(type==='Jeans'){if(col.name==='blue')return sh==='light wash'||sh==='light blue'?'light wash':sh==='mid wash'?'mid wash':'blue';if(col.name==='navy')return 'dark wash';if(col.name==='grey')return 'washed black'}
+  if(sh==='light wash')return 'light blue';if(sh==='mid wash')return 'blue';
+  return sh;
 }
 async function autoDetect(blob,cutout,status){
   const img=await embedImage(blob,status);
   const type=await detectType(blob,status,img);
   const col=await detectColour(blob,cutout).catch(()=>null);
   let det={word:SINGULAR[type]||type.toLowerCase(),details:[]};try{det=await describe(img,type)}catch(e){console.warn('describe',e)}
-  const words=[colourWord(col),...det.details,det.word].filter(Boolean).join(' ');
+  const words=[colourWord(col,type),...det.details,det.word].filter(Boolean).join(' ');
   const name=words[0].toUpperCase()+words.slice(1);
   return{type,group:GROUP_OF[type]||'Other',colour:col?.name||'',colourHex:col?.hex||null,colours2:col?.secondary||[],name,emb:img};
 }
