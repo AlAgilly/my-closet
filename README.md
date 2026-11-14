@@ -24,15 +24,18 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
 - Blouses, Leggings, Rompers, Tights and Hair accessories icons are drawn for this app in the same line style.
 - Icons from [Flaticon](https://www.flaticon.com), free with attribution, redrawn at one uniform (thin) line width:
   - Activewear: [Sportwear](https://www.flaticon.com/free-icon/sportwear_18842964) by Adury5711
-  - Bags: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish
+  - Bags: [Handbag](https://www.flaticon.com/free-icon/handbag_9147365) by Aranagraphics
+  - Accessories group: [Handbag](https://www.flaticon.com/free-icon/handbag_3345463) by juicy_fish
+  - Footwear group: [Shoe](https://www.flaticon.com/free-icon/shoe_293145) by Magnific
+  - Boots: [Boot](https://www.flaticon.com/free-icon/boot_8789844) by juicy_fish
   - Belts: [Belt](https://www.flaticon.com/free-icon/belt_5683319) by Hazicon
   - Blazers: [Jersey Blazer](https://www.flaticon.com/free-icon/jersey-blazer_88766) by Magnific
   - Bodysuits: [Underwear](https://www.flaticon.com/free-icon/underwear_13968001) by Nadiinko
   - Cardigans: [Fashion](https://www.flaticon.com/free-icon/fashion_13167322) by Chanut-is-Industries
   - Coats: [Coat](https://www.flaticon.com/free-icon/coat_2161184) by Smashicons
   - Dresses: [Dress](https://www.flaticon.com/free-icon/dress_3052777) by Pronicon
-  - Footwear: [Running shoe](https://www.flaticon.com/free-icon/running-shoe_6456651) by Smashicons
-  - Heels: [High heels](https://www.flaticon.com/free-icon/high-heels_1077995) by Magnific
+  - Shoes: [Running shoe](https://www.flaticon.com/free-icon/running-shoe_6456651) by Smashicons
+  - Heels: [Shoes](https://www.flaticon.com/free-icon/shoes_6717443) by Vectors Tank (flipped)
   - Glasses: [Reading eyeglasses](https://www.flaticon.com/free-icon/reading-eyeglasses_27106) by Magnific
   - Hats: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
   - Jackets: [Jacket](https://www.flaticon.com/free-icon/jacket_5758286) by Ehtisham Abid
@@ -54,7 +57,6 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Underwear: [Underwear](https://www.flaticon.com/free-icon/underwear_2348165) by Bartama Graphic
   - Full length group: [Dress](https://www.flaticon.com/free-icon/dress_2806167) by Victoruler
   - Long sleeves: [Shirt](https://www.flaticon.com/free-icon/shirt_17071121) by Nur syifa fauziah
-  - Accessories group: [Cap](https://www.flaticon.com/free-icon/cap_1974211) by Smashicons
   - Short sleeves: [T shirt](https://www.flaticon.com/free-icon/t-shirt_11205893) by JoeKanaka
   - Tank tops: [Tanktop](https://www.flaticon.com/free-icon/tanktop_5095867) by iconnut
   - Vests: [Waistcoat](https://www.flaticon.com/free-icon/waistcoat_4343241) by bqlqn

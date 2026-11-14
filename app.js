@@ -6,11 +6,11 @@ const GROUPS=[
   ['Bottoms',['Jeans','Pants','Sweatpants','Skirts','Leggings','Shorts']],
   ['Full length',['Dresses','Overalls','Rompers','Jumpsuits']],
   ['Jackets',['Cardigans','Jackets','Coats','Vests','Blazers']],
-  ['Shoes',['Footwear','Heels']],
+  ['Footwear',['Shoes','Boots','Heels']],
   ['Accessories',['Bags','Jewelry','Hats','Hair accessories','Glasses','Belts','Bras','Underwear','Tights']],
   ['Other',['Activewear','Other']]];
-const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Shoes','Accessories'];
-const SHOE_T=['Footwear','Heels'],UNDER_T=['Bras','Underwear','Tights'],HEAD_T=['Hats','Hair accessories'];
+const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Footwear','Accessories'];
+const SHOE_T=['Shoes','Boots','Heels'],UNDER_T=['Bras','Underwear','Tights'],HEAD_T=['Hats','Hair accessories'];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
 const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
@@ -269,10 +269,10 @@ async function removeBg(blob,status){
 const TYPE_PHRASE={'Sweatpants':'a pair of sweatpants or joggers','Hair accessories':'a hair accessory such as a hair clip, claw clip, scrunchie, bow or headband','Blouses':'a blouse, button-up shirt or other dressy top','Leggings':'a pair of leggings','Rompers':'a romper, a one-piece outfit with shorts','Bras':'a bra or bralette','Underwear':'a pair of underwear or panties','Tights':'a pair of tights or stockings','Short sleeves':'a short sleeve t-shirt','Long sleeves':'a long sleeve t-shirt or fitted long sleeve top','Crewnecks':'a crewneck sweatshirt','Tank tops':'a sleeveless tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants',
   'Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan','Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt',
   'Overalls':'a pair of overalls with a bib and shoulder straps','Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
-  'Footwear':'a pair of shoes such as sneakers, boots, flats, loafers or sandals','Heels':'a pair of high heels or pumps','Bags':'a handbag or purse','Belts':'a belt','Glasses':'a pair of sunglasses or eyeglasses','Hats':'a hat or cap',
+  'Shoes':'a pair of shoes such as sneakers, flats, loafers or sandals','Boots':'a pair of boots','Heels':'a pair of high heels or pumps','Bags':'a handbag or purse','Belts':'a belt','Glasses':'a pair of sunglasses or eyeglasses','Hats':'a hat or cap',
   'Jewelry':'a piece of jewelry such as a necklace, ring, earrings or a watch','Activewear':'athletic sportswear such as a sports bra or gym leggings'};
 const SINGULAR={'Sweatpants':'sweatpants','Hair accessories':'hair accessory','Blouses':'blouse','Leggings':'leggings','Rompers':'romper','Bras':'bra','Underwear':'underwear','Tights':'tights','Short sleeves':'t-shirt','Long sleeves':'long-sleeve top','Crewnecks':'crewneck','Tank tops':'tank top','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
-  'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'shoes','Heels':'heels','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
+  'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Shoes':'shoes','Boots':'boots','Heels':'heels','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
   'Jewelry':'jewelry','Activewear':'activewear','Other':'item'};
 const CLIP={cache:{}};
 // text embeddings for a list of prompts, cached by key
@@ -329,7 +329,7 @@ const A={
   vest:{p:['a suit waistcoat','a quilted puffer vest','a knit sweater vest'],w:['waistcoat','puffer vest','sweater vest'],word:true}};
 const DETAILS={Sweatpants:['pat','mat'],Blouses:['pat','crop','mat','sleeve','neck'],Leggings:['pat','mat'],Rompers:['pat','mat'],'Short sleeves':['pat','crop','mat','neck'],'Long sleeves':['pat','crop','mat','neck'],Crewnecks:['pat','crop','mat'],'Tank tops':['pat','crop','mat','neck'],Bodysuits:['pat','mat','sleeve','neck'],Sweaters:['pat','crop','mat','neck'],
   Hoodies:['pat','crop','zip','mat'],Cardigans:['pat','crop','mat'],Jeans:['leg'],Pants:['pat','mat','leg'],Shorts:['pat','mat'],Skirts:['pat','mat','len'],Overalls:['mat'],
-  Dresses:['pat','mat','len','neck'],Jumpsuits:['pat','mat'],Jackets:['mat','jacket','crop'],Coats:['coat'],Blazers:['pat','mat'],Vests:['vest'],Footwear:['mat','foot'],
+  Dresses:['pat','mat','len','neck'],Jumpsuits:['pat','mat'],Jackets:['mat','jacket','crop'],Coats:['coat'],Blazers:['pat','mat'],Vests:['vest'],Shoes:['mat','foot'],Boots:['mat'],
   Heels:['heels'],Bags:['mat','bag'],Belts:['mat'],Glasses:['glass'],Hats:['hat'],Jewelry:['jewel'],Activewear:['active']};
 async function describe(img,type){
   const noun=SINGULAR[type]||type.toLowerCase();let word=noun;const parts=[];
@@ -726,6 +726,9 @@ const ICON={
   underwear:'<img class="ico" src="icons/underwear.png" alt="" draggable="false">',
   tights:'<img class="ico" src="icons/tights.png" alt="" draggable="false">',
   hair:'<img class="ico" src="icons/hair.png" alt="" draggable="false">',
+  boots:'<img class="ico" src="icons/boots.png" alt="" draggable="false">',
+  grp_footwear:'<img class="ico" src="icons/grp_footwear.png" alt="" draggable="false">',
+  grp_accessories:'<img class="ico" src="icons/grp_accessories.png" alt="" draggable="false">',
   sweatpants:'<img class="ico" src="icons/sweatpants.png" alt="" draggable="false">',
   grp_tops:'<img class="ico" src="icons/grp_tops.png" alt="" draggable="false">',
   grp_bottoms:'<img class="ico" src="icons/grp_bottoms.png" alt="" draggable="false">',
@@ -734,9 +737,9 @@ const ICON={
   vests:'<img class="ico" src="icons/vests.png" alt="" draggable="false">',
   other:'<img class="ico" src="icons/other.png" alt="" draggable="false">'};
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
-  'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
+  'Dresses':'dresses','Shoes':'footwear','Boots':'boots','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Sweatpants':'sweatpants','Hair accessories':'hair','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Shoes:'heels',Accessories:'hats',Other:'other'};
+const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Footwear:'grp_footwear',Accessories:'grp_accessories',Other:'other'};
 function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
@@ -1071,7 +1074,7 @@ function statsBody(){
     <h3>Most worn</h3>${most.length?`<div class="list">${most.map(([id,i])=>li(id,i,`Worn ${wornCount(id)}× · last ${ago(last(W[id]))}`)).join('')}</div>`:'<p class="muted" style="margin:0">Log outfits on the calendar to see this.</p>'}
     <h3>Best value</h3>${cpw.length?`<div class="list">${cpw.map(([id,i,v])=>li(id,i,`${money(Math.round(v*100)/100)} per wear · ${money(i.price)} total`)).join('')}</div>`:'<p class="muted" style="margin:0">Add prices and log what you wear to see cost per wear.</p>'}
     <h3>Not worn in 90+ days · ${neverOrStale.length}</h3>${neverOrStale.length?`<div class="list">${neverOrStale.slice(0,12).map(([id,i])=>li(id,i,last(W[id])?`Last worn ${fmtDate(last(W[id]))}`:'Never worn')).join('')}</div>`:'<p class="muted" style="margin:0">You’ve worn everything recently.</p>'}
-    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, JoeKanaka, iconnut, bqlqn, Erifqi Zetiawan, Nur syifa fauziah, Yuluck, Ains, Irakun, Bartama Graphic and Ehtisham Abid Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
+    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, JoeKanaka, iconnut, bqlqn, Erifqi Zetiawan, Nur syifa fauziah, Yuluck, Ains, Irakun, Bartama Graphic, Ehtisham Abid, Aranagraphics and Vectors Tank Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
 }
 
 /* ---------- main view events ---------- */
@@ -1680,7 +1683,7 @@ const SEG_REGIONS=[
   {key:'dress',label:'Dress',cls:[7],min:.02,ok:inG('Full length')},
   {key:'pants',label:'Bottoms',cls:[6],min:.01,ok:i=>(inG('Bottoms')(i)&&!isT('Skirts')(i))||isT('Activewear','Jumpsuits')(i)},
   {key:'skirt',label:'Skirt',cls:[5],min:.008,ok:isT('Skirts','Shorts')},
-  {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:isT('Footwear','Heels'),all:true},
+  {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:isT(...SHOE_T),all:true},
   {key:'bag',label:'Bag',cls:[16],min:.003,ok:isT('Bags')},
   {key:'hat',label:'Hat',cls:[1],min:.003,ok:isT('Hats')},
   {key:'glasses',label:'Glasses',cls:[3],min:.001,ok:isT('Glasses')}];
@@ -1975,12 +1978,13 @@ function guessSeasons(i){
   if(['Tank tops','Shorts'].includes(t)||has('sleeveless','strappy','cami'))return['spring','summer'];
   if(t==='Dresses')return has('long-sleeve','knit','sweater')?['fall','winter','spring']:['spring','summer','fall'];
   if(t==='Blouses'&&has('long-sleeve'))return['spring','fall','winter'];
+  if(t==='Boots')return['fall','winter','spring'];
   if(t==='Tights')return['fall','winter'];
   if(t==='Rompers')return['spring','summer'];
   return[];
 }
 function guessDress(i){
-  const base={Activewear:1,Hoodies:2,Crewnecks:2,'Short sleeves':3,'Long sleeves':4,Jeans:3,'Tank tops':3,Footwear:3,Shorts:2,Sweatpants:1,'Hair accessories':4,Blouses:6,Leggings:2,Rompers:4,Bras:3,Underwear:3,Tights:5,Sweaters:4,Cardigans:4,Jackets:4,Vests:4,Overalls:3,Bodysuits:5,Pants:5,Skirts:5,Coats:5,
+  const base={Activewear:1,Hoodies:2,Crewnecks:2,'Short sleeves':3,'Long sleeves':4,Jeans:3,'Tank tops':3,Shoes:3,Boots:4,Shorts:2,Sweatpants:1,'Hair accessories':4,Blouses:6,Leggings:2,Rompers:4,Bras:3,Underwear:3,Tights:5,Sweaters:4,Cardigans:4,Jackets:4,Vests:4,Overalls:3,Bodysuits:5,Pants:5,Skirts:5,Coats:5,
     Bags:5,Belts:5,Hats:3,Glasses:4,Jewelry:6,Dresses:6,Jumpsuits:6,Blazers:7,Heels:7}[typeOf(i)]||4;
   const n=(i.name||'').toLowerCase(),has=(...w)=>w.some(x=>n.includes(x));let d=base;
   if(has('sequin','satin','silk','gown','maxi','lace','velvet','pumps'))d+=2;
@@ -2175,8 +2179,8 @@ render();
       await idbPut('items',iid,v);S.items.set(iid,v);
     }
     // retired types -> the owner's categories; auto-made names ("Black heels") follow the new type
-    {const MOVE={'Tops':'Blouses','T-shirts':'Short sleeves','Shirts':'Blouses','Sneakers':'Footwear','Boots':'Footwear','Shoes':'Footwear','Flats':'Footwear',
-      'Sandals':'Footwear','Loafers':'Footwear','Sunglasses':'Glasses','Watches':'Jewelry','Scarves':'Other','Sleepwear':'Other','Swimwear':'Other'};
+    {const MOVE={'Tops':'Blouses','T-shirts':'Short sleeves','Shirts':'Blouses','Footwear':'Shoes','Sneakers':'Shoes','Flats':'Shoes',
+      'Sandals':'Shoes','Loafers':'Shoes','Sunglasses':'Glasses','Watches':'Jewelry','Scarves':'Other','Sleepwear':'Other','Swimwear':'Other'};
      const OLD={'T-shirts':'t-shirt','Shirts':'shirt','Blouses':'blouse','Leggings':'leggings','Sweatpants':'sweatpants','Sneakers':'sneakers','Boots':'boots','Shoes':'shoes','Heels':'heels','Flats':'flats','Sandals':'sandals',
       'Loafers':'loafers','Sunglasses':'sunglasses','Watches':'watch','Scarves':'scarf','Sleepwear':'pajamas','Swimwear':'swimsuit'};
      const cap=w=>w?w[0].toUpperCase()+w.slice(1):w;
