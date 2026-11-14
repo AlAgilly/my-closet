@@ -42,7 +42,7 @@ const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boo
 const COLS=['closets','items','outfits','plans','looks','prefs'];
 const MAIN='main';
 const S={group:'All',f:{colours:[],seasons:[],dress:'',styles:[],worn:''},closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),prefs:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
-  shuf:{closet:'all',style:'',season:'auto',occ:'',outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
+  shuf:{closet:'all',style:'',season:'auto',occ:'',mode:'mix',pools:{},outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 {const v=ls.get('closet.view');if(['closet','outfits','shuffle','calendar','stats'].includes(v))S.view=v;S.closet=ls.get('closet.current')||'all'}
@@ -785,7 +785,7 @@ const OCCASIONS=[['','Any occasion',1,10],['casual','Casual',1,4],['everyday','E
 const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
-  const inPool=i=>group==='Bags'?typeOf(i)==='Bags':group==='Accessories'?groupOf(i)==='Accessories'&&typeOf(i)!=='Bags':groupOf(i)===group;
+  const inPool=i=>group==='Bags'?typeOf(i)==='Bags':groupOf(i)===group;
   const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
@@ -821,7 +821,8 @@ function doShuffle(){
   for(const k of L)if(sh.slots[k]&&S.items.has(sh.slots[k]))slots[k]=sh.slots[k];
   const P={top:shufPool('Tops'),bottom:shufPool('Bottoms'),one:shufPool('Full length'),shoes:shufPool('Shoes'),outer:shufPool('Jackets'),bag:shufPool('Bags'),acc:shufPool('Accessories')};
   let mode;
-  if(slots.one)mode='one';else if(slots.top||slots.bottom)mode='sep';
+  if(sh.mode==='sep'&&P.top.length&&P.bottom.length)mode='sep';else if(sh.mode==='one'&&P.one.length)mode='one';
+  else if(slots.one)mode='one';else if(slots.top||slots.bottom)mode='sep';
   else{
     // prefer the kind of outfit that actually fits the season and occasion; fall back only if neither does
     const Q={top:shufPool('Tops',false),bottom:shufPool('Bottoms',false),one:shufPool('Full length',false)};
@@ -830,7 +831,11 @@ function doShuffle(){
     mode=canSep&&canOne?(Math.random()<.3?'one':'sep'):canOne?'one':canSep?'sep':null}
   if(!mode){sh.slots={};sh.err='Add some tops and bottoms (or dresses) to this closet to shuffle outfits.';return}
   sh.err='';
-  const want=mode==='one'?['one']:['top','bottom'];want.push('shoes');if(sh.outer)want.push('outer');if(sh.bag)want.push('bag');if(sh.acc)want.push('acc');
+  if(mode==='one'){delete slots.top;delete slots.bottom}else delete slots.one;
+  const want=[...(mode==='one'?['one']:['top','bottom']),'outer','acc','shoes'];sh.cur=mode;
+  // what each row can scroll through: the pieces that fit (colour then name, so it's easy to browse)
+  const ord=GENERIC.map(g=>g[0]),srt=a=>[...a].sort((x,y)=>((ord.indexOf(genericName(x[1].colour))+1)||99)-((ord.indexOf(genericName(y[1].colour))+1)||99)||(x[1].name||'').localeCompare(y[1].name||''));
+  sh.pools={};for(const k of want){sh.pools[k]=srt(P[k]).map(([id])=>id);if(slots[k]&&!sh.pools[k].includes(slots[k]))sh.pools[k].unshift(slots[k])}
   const ctx={cw:coWear(),t:taste(),under:new Set([...S.items.values()].flatMap(i=>i.needs||[]))};
   for(const k of want)if(!slots[k]){const id=weightedPick(P[k],W,Object.values(slots),ctx);if(id)slots[k]=id}
   for(const id of Object.values(slots)){const need=needsOf(id);if(!need.length||need.some(n=>Object.values(slots).includes(n)))continue;
@@ -840,37 +845,54 @@ function doShuffle(){
 }
 const slotName=k=>SLOTNAME[k]||(k.startsWith('with')?'Worn with':k);
 const SLOTNAME={top:'Top',bottom:'Bottom',one:'Full length',shoes:'Shoes',outer:'Jacket',bag:'Bag',acc:'Accessory'};
+const SHUF_ROWS={sep:['top','bottom','outer','acc','shoes'],one:['one','outer','acc','shoes']};
+const ROW_EMPTY={top:'No tops here yet',bottom:'No bottoms here yet',one:'No full-length pieces here yet',outer:'No jackets here yet',acc:'No accessories here yet',shoes:'No shoes here yet'};
 function shuffleView(){
   if(!S.ready)return '';
   const sh=S.shuf;if(sh.closet!=='all'&&!S.closets.has(sh.closet))sh.closet='all';
-  if(!Object.keys(sh.slots).length&&!sh.err)doShuffle();
+  if(!sh.cur&&!sh.err)doShuffle();
   const styles=[...new Set([...S.items.values()].filter(i=>inCloset(i,sh.closet)).map(i=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
-  const ids=Object.values(sh.slots);
+  const withs=Object.entries(sh.slots).filter(([k])=>k.startsWith('with')).map(([,id])=>S.items.get(id)).filter(Boolean);
+  const row=k=>{const ids=(sh.pools[k]||[]).filter(id=>S.items.has(id)),on=sh.slots[k];
+    return `<div class="srow ${k==='top'||k==='bottom'||k==='one'?'big':''}"><div class="srhead"><small>${SLOTNAME[k]}${ids.length?` · ${ids.length}`:''}</small>${on?`<button type="button" class="lock" data-lock="${k}" aria-pressed="${sh.locks.has(k)}">${sh.locks.has(k)?'Locked':'Lock'}</button>`:''}</div>
+      ${ids.length?`<div class="scar" data-car="${k}" aria-label="${SLOTNAME[k]}: swipe to choose">${ids.map(id=>{const i=S.items.get(id);return `<div class="scard${id===on?' on':''}" data-cid="${id}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></div>`}).join('')}</div>`
+        :`<p class="muted srempty">${ROW_EMPTY[k]}</p>`}</div>`};
   return `${closetChips(sh.closet,'data-shufcloset')}
     <div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
       <select id="shStyle" aria-label="Style"><option value="">Any style</option>${styles.map(s=>`<option ${sh.style===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
-    <div class="chips" role="group" aria-label="Add to the outfit">${[['outer','Jacket'],['bag','Bag'],['acc','Accessory']].map(([k,l])=>`<button class="chip" type="button" data-shopt="${k}" aria-pressed="${!!sh[k]}">+ ${l}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Outfit kind">${[['mix','Mix it up'],['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
-    ${boardHTML(ids,null,'big')}
-    <div class="slots">${Object.entries(sh.slots).map(([k,id])=>{const it=S.items.get(id);return `<div class="slot"><span class="mini ${it?.cutout&&hasImg(it)?'cut':''}">${thumb(it)}</span><span class="tx"><small>${slotName(k)}</small><b>${esc(it?.name)}</b></span><button type="button" class="lock" data-lock="${k}" aria-pressed="${sh.locks.has(k)}">${sh.locks.has(k)?'Locked':'Lock'}</button></div>`}).join('')}</div>
-    <p class="muted" style="margin:0;font-size:13px">Lock the pieces you like, then shuffle the rest. Pieces worn in the last week come up less often, and “always wear with” pieces are added for you.</p>
+    <div class="srows">${(SHUF_ROWS[sh.cur]||SHUF_ROWS.sep).map(row).join('')}</div>
+    ${withs.length?`<p class="muted" style="margin:0;font-size:13px">Worn with: <b>${withs.map(i=>esc(i.name)).join(', ')}</b></p>`:''}
+    <p class="muted" style="margin:0;font-size:13px">Swipe any row to pick a piece yourself, lock the ones you like, and shuffle the rest.</p>
     <div class="btns"><button class="btn primary" type="button" id="shGo">Shuffle</button><button class="btn" type="button" id="shLike" aria-label="I like this outfit">👍</button><button class="btn" type="button" id="shNope" aria-label="Not for me">👎</button><button class="btn" type="button" id="shSave">Save as outfit</button><button class="btn" type="button" id="shWear">Wear today</button></div>
     <p class="muted" style="margin:0;font-size:12px">Shuffle learns from 👍, 👎, what you save and wear, and what you wear together on the calendar.</p>`}`;
 }
+// centre a row on its chosen piece; when you swipe, the piece in the middle becomes the choice
+function centreCar(car,smooth){const id=S.shuf.slots[car.dataset.car],c=id&&car.querySelector(`[data-cid="${id}"]`);if(!c)return;
+  const left=c.offsetLeft-(car.clientWidth-c.offsetWidth)/2;car._prog=true;car.scrollTo({left,behavior:smooth?'smooth':'auto'});setTimeout(()=>{car._prog=false},smooth?700:60)}
 function wireShuffle(){
-  const sh=S.shuf;
+  const sh=S.shuf,prev=sh._prev;sh._prev=null;
+  document.querySelectorAll('.scar').forEach(car=>{
+    if(prev&&prev[car.dataset.car]!=null){car.scrollLeft=prev[car.dataset.car];requestAnimationFrame(()=>centreCar(car,true))}else centreCar(car,false);
+    let t=null;car.addEventListener('scroll',()=>{clearTimeout(t);t=setTimeout(()=>{if(car._prog)return;
+      const mid=car.scrollLeft+car.clientWidth/2;let best=null,bd=1e9;car.querySelectorAll('.scard').forEach(c=>{const d=Math.abs(c.offsetLeft+c.offsetWidth/2-mid);if(d<bd){bd=d;best=c}});
+      if(!best)return;const k=car.dataset.car,id=best.dataset.cid;if(sh.slots[k]===id)return;
+      sh.slots[k]=id;sh.shownAt=Date.now();car.querySelectorAll('.scard').forEach(c=>c.classList.toggle('on',c===best))},140)});
+    car.addEventListener('click',e=>{const c=e.target.closest('.scard');if(!c)return;sh.slots[car.dataset.car]=c.dataset.cid;car.querySelectorAll('.scard').forEach(x=>x.classList.toggle('on',x===c));centreCar(car,true)});
+  });
+  const spin=()=>{const prev={};document.querySelectorAll('.scar').forEach(c=>prev[c.dataset.car]=c.scrollLeft);sh._prev=prev;doShuffle();render()};
   $('#shGo')?.addEventListener('click',()=>{const free=Object.entries(sh.slots).filter(([k])=>!sh.locks.has(k)).map(([,id])=>id);
-    if(free.length&&sh.shownAt&&Date.now()-sh.shownAt<4000)bumpTaste(Object.values(sh.slots),-.1,1).catch(()=>{});doShuffle();render()});
+    if(free.length&&sh.shownAt&&Date.now()-sh.shownAt<4000)bumpTaste(Object.values(sh.slots),-.1,1).catch(()=>{});spin()});
   $('#shLike')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),.6,0);toast('Got it. More outfits like this.')});
-  $('#shNope')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),-.6,0);doShuffle();render();toast('Got it. Fewer like that.')});
+  $('#shNope')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),-.6,0);spin();toast('Got it. Fewer like that.')});
   $('#shSave')?.addEventListener('click',()=>{bumpTaste(Object.values(sh.slots),.6,0).catch(()=>{});outfitSheet(null,Object.values(sh.slots))});
   $('#shWear')?.addEventListener('click',async e=>{const ids=Object.values(sh.slots);await guard(e.currentTarget,async()=>{bumpTaste(ids,.6,0).catch(()=>{});let oid=matchOutfit(ids);await saveDoc('plans',today(),{itemIds:ids,outfitId:oid,note:S.plans.get(today())?.note||''});toast('Logged for today')})});
   $('#shStyle')?.addEventListener('change',e=>{sh.style=e.target.value;sh.locks.clear();doShuffle();render()});
   $('#shOcc')?.addEventListener('change',e=>{sh.occ=e.target.value;sh.locks.clear();doShuffle();render()});
   $('#shSea')?.addEventListener('change',e=>{sh.season=e.target.value;sh.locks.clear();doShuffle();render()});
 }
-
 
 /* ---------- weather: 7-day forecast from Open-Meteo (free, no account). Location is rounded to about 1 km and kept on this device. ---------- */
 const WX={loading:false,err:''};
@@ -1043,8 +1065,9 @@ document.addEventListener('click',e=>{
   const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';S.group='All';ls.set('closet.current',S.closet);render();return}
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
+  const sm=e.target.closest('[data-shmode]');if(sm){S.shuf.mode=sm.dataset.shmode;S.shuf.locks.clear();doShuffle();render();return}
   const so=e.target.closest('[data-shopt]');if(so){const k=so.dataset.shopt;S.shuf[k]=!S.shuf[k];if(!S.shuf[k]){delete S.shuf.slots[k];S.shuf.locks.delete(k)}doShuffle();render();return}
-  const lk=e.target.closest('[data-lock]');if(lk){const k=lk.dataset.lock,L=S.shuf.locks;L.has(k)?L.delete(k):L.add(k);render();return}
+  const lk=e.target.closest('[data-lock]');if(lk){const k=lk.dataset.lock,L=S.shuf.locks;L.has(k)?L.delete(k):L.add(k);lk.setAttribute('aria-pressed',L.has(k));lk.textContent=L.has(k)?'Locked':'Lock';return}
   const gr=e.target.closest('[data-group]');if(gr){S.group=gr.dataset.group;S.type='All';refreshCloset();return}
   const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;refreshCloset();return}
   if(e.target.closest('#fsBtn')){filterSheet();return}

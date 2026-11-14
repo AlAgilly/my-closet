@@ -356,6 +356,19 @@ input[type=date]{display:block;width:100%;min-width:0;max-width:100%;box-sizing:
 .fchips .chip{font-size:13px;padding:5px 11px}
 button.barbtn{all:unset;cursor:pointer;display:grid;grid-template-columns:minmax(0,7.5em) 1fr auto;gap:10px;align-items:center;font-size:14px;border-radius:8px;padding:2px 0}
 button.barbtn:active{background:var(--accent-soft)}button.barbtn:focus-visible{outline:2px solid var(--accent)}
+.srows{display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 0}
+.srow{display:flex;flex-direction:column;gap:2px}
+.srhead{display:flex;justify-content:space-between;align-items:center;padding:0 12px;min-height:26px}
+.srhead small{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.srhead .lock{font-size:12px;padding:3px 10px}
+.scar{position:relative;display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:2px calc(50% - 38px) 4px;-webkit-overflow-scrolling:touch}
+.scar::-webkit-scrollbar{display:none}
+.scard{flex:none;width:76px;scroll-snap-align:center;display:flex;flex-direction:column;gap:3px;opacity:.45;transform:scale(.88);transition:opacity .15s,transform .15s;cursor:pointer}
+.srow.big .scar{padding-inline:calc(50% - 54px)}.srow.big .scard{width:108px}
+.scard.on{opacity:1;transform:none}.scard .ph{border-radius:12px;background:var(--bg)}
+.scard small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.srempty{margin:0;padding:6px 12px 10px;font-size:13px}
+@media (prefers-reduced-motion:reduce){.scard{transition:none}}
 .syncpill{flex:none;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 11px 0 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
 .syncpill svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .syncpill.ok svg{color:var(--ok)}.syncpill.pending,.syncpill.busy{color:var(--accent)}.syncpill.err{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
