@@ -2,16 +2,17 @@
 /* My Closet: data lives in this device's IndexedDB and syncs to a private GitHub repo the user owns. */
 
 const GROUPS=[
-  ['Tops',['Tops','Short sleeves','Long sleeves','Tank tops','Bodysuits','Crewnecks','Sweaters','Hoodies','Cardigans']],
-  ['Bottoms',['Jeans','Pants','Shorts','Skirts','Overalls']],
-  ['One-pieces',['Dresses','Jumpsuits']],
-  ['Outerwear',['Jackets','Coats','Blazers','Vests']],
+  ['Tops',['Long sleeves','Short sleeves','Crewnecks','Hoodies','Tank tops','Sweaters','Bodysuits','Blouses']],
+  ['Bottoms',['Jeans','Pants','Skirts','Leggings','Shorts']],
+  ['Full length',['Dresses','Overalls','Rompers','Jumpsuits']],
+  ['Jackets',['Cardigans','Jackets','Coats','Vests','Blazers']],
+  ['Undergarments',['Bras','Underwear','Tights']],
   ['Shoes',['Footwear','Heels']],
-  ['Bags',['Bags']],
-  ['Accessories',['Belts','Glasses','Hats','Jewelry']],
+  ['Accessories',['Bags','Belts','Glasses','Hats','Jewelry']],
   ['Other',['Activewear','Other']]];
+const MAIN_GROUPS=['Tops','Bottoms','Full length','Jackets','Undergarments'];
 const GROUP_OF={};GROUPS.forEach(([g,ts])=>ts.forEach(t=>GROUP_OF[t]=g));
-const TYPE_ORDER=['Activewear','Bags','Belts','Blazers','Bodysuits','Cardigans','Coats','Crewnecks','Dresses','Footwear','Heels','Glasses','Hats','Jackets','Jeans','Jewelry','Jumpsuits','Long sleeves','Overalls','Pants','Short sleeves','Shorts','Skirts','Sweaters','Hoodies','Tops','Tank tops','Vests','Other'];
+const TYPE_ORDER=GROUPS.flatMap(g=>g[1]);
 // Generic colour names, each with a display shade. Exact shades are kept as colourHex; names stay simple.
 const GENERIC=[['black','#1c1c1e'],['white','#f6f6f4'],['grey','#8e8e93'],['beige','#d8c3a0'],['brown','#7b5234'],['red','#c8302f'],['maroon','#7a1f2e'],['orange','#ec8a2f'],['yellow','#f2cf45'],['green','#3f8f53'],['blue','#3b74c4'],['navy','#1f2d55'],['purple','#7a4a9c'],['pink','#ec9ab8']];
 const GEN_HEX=Object.fromEntries(GENERIC);
@@ -40,7 +41,7 @@ const swatchOf=it=>it?.colourHex||GEN_HEX[genericName(it?.colour)]||okColour(it?
 const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boolean);
 const COLS=['closets','items','outfits','plans','looks','prefs'];
 const MAIN='main';
-const S={closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),prefs:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
+const S={group:'All',f:{colours:[],seasons:[],dress:'',styles:[],worn:''},closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),prefs:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
   shuf:{closet:'all',style:'',season:'auto',occ:'',outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
@@ -265,12 +266,12 @@ async function removeBg(blob,status){
 }
 
 /* ---------- auto-detect: type (on-device CLIP), colour (pixels), name ---------- */
-const TYPE_PHRASE={'Tops':'a blouse, button-up shirt or other dressy top','Short sleeves':'a short sleeve t-shirt','Long sleeves':'a long sleeve t-shirt or fitted long sleeve top','Crewnecks':'a crewneck sweatshirt','Tank tops':'a sleeveless tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants',
-  'Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan','Jeans':'a pair of denim jeans','Pants':'a pair of trousers or leggings','Shorts':'a pair of shorts','Skirts':'a skirt',
+const TYPE_PHRASE={'Blouses':'a blouse, button-up shirt or other dressy top','Leggings':'a pair of leggings','Rompers':'a romper, a one-piece outfit with shorts','Bras':'a bra or bralette','Underwear':'a pair of underwear or panties','Tights':'a pair of tights or stockings','Short sleeves':'a short sleeve t-shirt','Long sleeves':'a long sleeve t-shirt or fitted long sleeve top','Crewnecks':'a crewneck sweatshirt','Tank tops':'a sleeveless tank top','Bodysuits':'a fitted bodysuit, a one-piece leotard top worn with pants',
+  'Sweaters':'a knit sweater','Hoodies':'a hoodie','Cardigans':'a cardigan','Jeans':'a pair of denim jeans','Pants':'a pair of trousers','Shorts':'a pair of shorts','Skirts':'a skirt',
   'Overalls':'a pair of overalls with a bib and shoulder straps','Dresses':'a dress','Jumpsuits':'a jumpsuit','Jackets':'a jacket','Coats':'a long coat','Blazers':'a blazer','Vests':'a vest',
   'Footwear':'a pair of shoes such as sneakers, boots, flats, loafers or sandals','Heels':'a pair of high heels or pumps','Bags':'a handbag or purse','Belts':'a belt','Glasses':'a pair of sunglasses or eyeglasses','Hats':'a hat or cap',
   'Jewelry':'a piece of jewelry such as a necklace, ring, earrings or a watch','Activewear':'athletic sportswear such as a sports bra or gym leggings'};
-const SINGULAR={'Tops':'top','Short sleeves':'t-shirt','Long sleeves':'long-sleeve top','Crewnecks':'crewneck','Tank tops':'tank top','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
+const SINGULAR={'Blouses':'blouse','Leggings':'leggings','Rompers':'romper','Bras':'bra','Underwear':'underwear','Tights':'tights','Short sleeves':'t-shirt','Long sleeves':'long-sleeve top','Crewnecks':'crewneck','Tank tops':'tank top','Bodysuits':'bodysuit','Sweaters':'sweater','Hoodies':'hoodie','Cardigans':'cardigan','Jeans':'jeans','Pants':'pants','Shorts':'shorts','Skirts':'skirt',
   'Overalls':'overalls','Dresses':'dress','Jumpsuits':'jumpsuit','Jackets':'jacket','Coats':'coat','Blazers':'blazer','Vests':'vest','Footwear':'shoes','Heels':'heels','Bags':'bag','Belts':'belt','Glasses':'glasses','Hats':'hat',
   'Jewelry':'jewelry','Activewear':'activewear','Other':'item'};
 const CLIP={cache:{}};
@@ -326,7 +327,7 @@ const A={
   glass:{p:['a pair of sunglasses with dark lenses','a pair of clear eyeglasses'],w:['sunglasses','glasses'],word:true},
   active:{p:['a sports bra','a pair of gym leggings','a pair of athletic shorts','a workout top','a matching two piece activewear set'],w:['sports bra','leggings','athletic shorts','workout top','activewear set'],word:true},
   vest:{p:['a suit waistcoat','a quilted puffer vest','a knit sweater vest'],w:['waistcoat','puffer vest','sweater vest'],word:true}};
-const DETAILS={Tops:['pat','crop','mat','sleeve','neck'],'Short sleeves':['pat','crop','mat','neck'],'Long sleeves':['pat','crop','mat','neck'],Crewnecks:['pat','crop','mat'],'Tank tops':['pat','crop','mat','neck'],Bodysuits:['pat','mat','sleeve','neck'],Sweaters:['pat','crop','mat','neck'],
+const DETAILS={Blouses:['pat','crop','mat','sleeve','neck'],Leggings:['pat','mat'],Rompers:['pat','mat'],'Short sleeves':['pat','crop','mat','neck'],'Long sleeves':['pat','crop','mat','neck'],Crewnecks:['pat','crop','mat'],'Tank tops':['pat','crop','mat','neck'],Bodysuits:['pat','mat','sleeve','neck'],Sweaters:['pat','crop','mat','neck'],
   Hoodies:['pat','crop','zip','mat'],Cardigans:['pat','crop','mat'],Jeans:['leg'],Pants:['pat','mat','leg'],Shorts:['pat','mat'],Skirts:['pat','mat','len'],Overalls:['mat'],
   Dresses:['pat','mat','len','neck'],Jumpsuits:['pat','mat'],Jackets:['mat','jacket','crop'],Coats:['coat'],Blazers:['pat','mat'],Vests:['vest'],Footwear:['mat','foot'],
   Heels:['heels'],Bags:['mat','bag'],Belts:['mat'],Glasses:['glass'],Hats:['hat'],Jewelry:['jewel'],Activewear:['active']};
@@ -531,14 +532,15 @@ const last=r=>r?.worn?.length?r.worn[r.worn.length-1]:null;
 
 /* ---------- outfit board (canvas) ---------- */
 // default box per group: [x%, y%, width%, height%] of the 3:4 board
-const SLOT={Outerwear:[2,6,40,46],Tops:[22,2,56,34],'One-pieces':[20,2,60,72],Bottoms:[26,35,48,42],Shoes:[30,78,40,19],Bags:[66,42,32,28],Accessories:[72,2,26,18],Other:[2,58,30,28]};
-const LAYER=['Outerwear','Bottoms','One-pieces','Tops','Shoes','Bags','Accessories','Other'];
+const SLOT={Jackets:[2,6,40,46],Undergarments:[22,2,56,34],Tops:[22,2,56,34],'Full length':[20,2,60,72],Bottoms:[26,35,48,42],Shoes:[30,78,40,19],Bags:[66,42,32,28],Accessories:[72,2,26,18],Other:[2,58,30,28]};
+const LAYER=['Jackets','Bottoms','Full length','Tops','Shoes','Bags','Accessories','Other'];
 function autoLayout(ids,prev={}){
   const out={},count={};
   let z=Math.max(0,...Object.values(prev).map(p=>p.z||0));
-  const list=ids.filter(id=>S.items.has(id)).sort((a,b)=>LAYER.indexOf(groupOf(S.items.get(a)))-LAYER.indexOf(groupOf(S.items.get(b))));
+  const slotG=i=>typeOf(i)==='Bags'?'Bags':groupOf(i);
+  const list=ids.filter(id=>S.items.has(id)).sort((a,b)=>LAYER.indexOf(slotG(S.items.get(a)))-LAYER.indexOf(slotG(S.items.get(b))));
   for(const id of list){
-    const g=groupOf(S.items.get(id));count[g]=(count[g]||0)+1;
+    const g=slotG(S.items.get(id));count[g]=(count[g]||0)+1;
     if(prev[id]){out[id]={...prev[id],h:prev[id].h||prev[id].w};continue}
     const[x,y,w,h]=SLOT[g]||SLOT.Other,n=count[g]-1;
     out[id]={x:clamp(x+n*8,-5,100-w/2),y:clamp(y+n*6,0,90),w,h,z:++z};
@@ -593,7 +595,7 @@ function render(){
   $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,looks:looksView,shuffle:shuffleView,calendar:calendarView,stats:statsView}[S.view]||closetView)();
   if(S.view==='shuffle')wireShuffle();
   const cats=$('.cats'),selCat=cats?.querySelector('[aria-pressed="true"]');
-  if(cats&&selCat&&S.type!=='All')cats.scrollLeft=Math.max(0,selCat.offsetLeft-cats.clientWidth/2+selCat.offsetWidth/2);
+  if(cats&&selCat&&S.group!=='All')cats.scrollLeft=Math.max(0,selCat.offsetLeft-cats.clientWidth/2+selCat.offsetWidth/2);
   scrollTo(0,y);
 }
 function closetChips(cur,attr,extra=''){
@@ -604,24 +606,82 @@ function closetChips(cur,attr,extra=''){
 function closetView(){
   if(!S.ready)return '';
   const top=closetChips(S.closet,'data-closet',`<button class="chip ghost" type="button" id="manageClosets">${S.closets.size>1?'Edit closets':'+ Add a closet'}</button>`)
-    +`<button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Add many photos at once</button>`+(ls.get('closet.sorted3')||![...S.items.values()].some(i=>['Tops','Sweaters','Hoodies'].includes(i.type))?'':`<button class="bulkbtn" type="button" id="sortBtn">Sort tops into Long sleeves, Short sleeves &amp; Crewnecks</button>`)+(()=>{const n=[...S.items.values()].filter(i=>!isTagged(i)).length;return n?`<button class="bulkbtn" type="button" id="qtBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Quick tag seasons &amp; dressiness · ${n} to go</button>`:''})();
+    +`<button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Upload items</button>`+(ls.get('closet.sorted3')||![...S.items.values()].some(i=>['Blouses','Sweaters','Hoodies'].includes(i.type))?'':`<button class="bulkbtn" type="button" id="sortBtn">Sort tops into Long sleeves, Short sleeves &amp; Crewnecks</button>`)+(()=>{const n=[...S.items.values()].filter(i=>!isTagged(i)).length;return n?`<button class="bulkbtn" type="button" id="qtBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Quick tag seasons &amp; dressiness · ${n} to go</button>`:''})();
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
   if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
-  const types={};for(const[,i]of all){const t=typeOf(i);types[t]=(types[t]||0)+1}
-  if(S.type!=='All'&&!types[S.type])S.type='All';
-  const order=GENERIC.map(g=>g[0]);
-  const colours=[...new Set(all.flatMap(([,i])=>itemColours(i)))].sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99)||a.localeCompare(b));
-  const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
   return top+`
-    <div class="cats" role="group" aria-label="Type">${catBtn('All','All',all.length)}${Object.keys(types).sort((a,b)=>typeRank(a)-typeRank(b)||a.localeCompare(b)).map(t=>catBtn(t,t,types[t])).join('')}</div>
+    <div class="cats" role="group" aria-label="Category">${groupRow(all)}</div>
+    <div id="subcats">${subcatsHTML(all)}</div>
     <input class="search" id="q" type="search" placeholder="Search your closet" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(S.q)}" aria-label="Search closet">
-    <div class="row">
-      <select id="fColour" aria-label="Colour"><option value="">All colours</option>${colours.map(c=>`<option ${S.colour===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
-      <select id="fSeason" aria-label="Season"><option value="">All seasons</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${S.season===k?'selected':''}>${l}</option>`).join('')}</select>
-      <select id="fStyle" aria-label="Style"><option value="">All styles</option>${styles.map(c=>`<option ${S.style===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
-      <select id="fSort" aria-label="Sort">${[['new','Newest first'],['priceHi','Price: high to low'],['least','Least worn'],['longest','Not worn in longest'],['name','A–Z']].map(([v,l])=>`<option value="${v}" ${S.sort===v?'selected':''}>${l}</option>`).join('')}</select>
-    </div><div id="results">${closetResults()}</div>`;
+    <div id="fsbar">${fsBarHTML()}</div><div id="results">${closetResults()}</div>`;
 }
+const closetItems=()=>[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
+function groupRow(all){
+  const cnt={};for(const[,i]of all){const g=groupOf(i);cnt[g]=(cnt[g]||0)+1}
+  const show=[...MAIN_GROUPS,...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
+  if(S.group!=='All'&&!show.includes(S.group))S.group='All';
+  return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g,cnt[g]||0,'group')).join('');
+}
+const GROUP_OF_GROUP=g=>GROUPS.some(x=>x[0]===g);
+function subcatsHTML(all){
+  if(S.group==='All')return '';
+  const cnt={};for(const[,i]of all)if(groupOf(i)===S.group){const t=typeOf(i);cnt[t]=(cnt[t]||0)+1}
+  const known=(GROUPS.find(g=>g[0]===S.group)||[0,[]])[1],types=[...known,...Object.keys(cnt).filter(t=>!known.includes(t))];
+  if(S.type!=='All'&&!types.includes(S.type))S.type='All';
+  const n=Object.values(cnt).reduce((a,b)=>a+b,0);
+  return `<div class="chips subcats" role="group" aria-label="${esc(S.group)} types"><button class="chip" type="button" data-type="All" aria-pressed="${S.type==='All'}">All ${esc(S.group.toLowerCase())} <small>${n}</small></button>${types.map(t=>`<button class="chip" type="button" data-type="${esc(t)}" aria-pressed="${S.type===t}">${esc(t)} <small>${cnt[t]||0}</small></button>`).join('')}</div>`;
+}
+// --- Filter & sort ---
+const SORTS=[['new','Newest first'],['old','Oldest first'],['name','Name A–Z'],['priceHi','Price: high to low'],['priceLo','Price: low to high'],['most','Most worn'],['least','Least worn'],
+  ['longest','Not worn in longest'],['dressHi','Dressiest first'],['dressLo','Most casual first'],['colour','Colour']];
+const DRESS_FILTERS=[['casual','Casual (1–4)',1,4],['everyday','Everyday (3–7)',3,7],['dressy','Dressy (6–9)',6,9],['formal','Formal (8–10)',8,10]];
+const WORN_FILTERS=[['never','Never worn'],['stale','Not worn in 3 months'],['recent','Worn in the last month'],['leaving','Marked to let go']];
+function fPass(id,i,f=S.f,W=wear().items){
+  if(f.colours.length&&!itemColours(i).some(c=>f.colours.includes(c)))return false;
+  if(f.seasons.length&&!f.seasons.some(s=>fitsSeason(i,s)))return false;
+  if(f.dress){const r=DRESS_FILTERS.find(x=>x[0]===f.dress),d=dressOf(i);if(r&&(d<r[2]||d>r[3]))return false}
+  if(f.styles.length&&!f.styles.includes((i.style||'').trim().toLowerCase()))return false;
+  if(f.worn){const l=last(W[id]);
+    if(f.worn==='never'&&l)return false;if(f.worn==='stale'&&l&&daysAgo(l)<90)return false;if(f.worn==='recent'&&!(l&&daysAgo(l)<=31))return false;if(f.worn==='leaving'&&!i.fate)return false}
+  return true;
+}
+const fCount=(f=S.f)=>f.colours.length+f.seasons.length+(f.dress?1:0)+f.styles.length+(f.worn?1:0);
+function fsBarHTML(){
+  const f=S.f,chips=[...f.colours.map(c=>['colours',c,c]),...f.seasons.map(c=>['seasons',c,(SEASONS.find(x=>x[0]===c)||[])[1]]),...(f.dress?[['dress',f.dress,(DRESS_FILTERS.find(x=>x[0]===f.dress)||[])[1]]]:[]),
+    ...f.styles.map(c=>['styles',c,c]),...(f.worn?[['worn',f.worn,(WORN_FILTERS.find(x=>x[0]===f.worn)||[])[1]]]:[])];
+  return `<div class="fsrow"><button class="btn sm" type="button" id="fsBtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filter &amp; sort${chips.length?` · ${chips.length}`:''}</button>
+    <span class="muted fssort">${esc((SORTS.find(x=>x[0]===S.sort)||SORTS[0])[1])}</span></div>
+    ${chips.length?`<div class="chips fchips">${chips.map(([k,v,l])=>`<button class="chip" type="button" data-fx="${k}:${esc(v)}" aria-label="Remove ${esc(l)}">${esc(l)} ✕</button>`).join('')}<button class="chip ghost" type="button" data-fx="all">Clear</button></div>`:''}`;
+}
+function filterSheet(){
+  const all=closetItems(),f=JSON.parse(JSON.stringify(S.f));let sort=S.sort||'new';
+  const order=GENERIC.map(g=>g[0]),colours=[...new Set(all.flatMap(([,i])=>itemColours(i)))].sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99)||a.localeCompare(b));
+  const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
+  const chip=(k,v,l,on,sw)=>`<button class="chip" type="button" data-fk="${k}" data-fv="${esc(v)}" aria-pressed="${on}">${sw?`<span class="sw" style="background:${sw}"></span>`:''}${esc(l)}</button>`;
+  const sh=openSheet(`${head('Filter &amp; sort')}
+    <div class="field"><span class="lbl">Sort by</span><div class="chips wrap">${SORTS.map(([k,l])=>`<button class="chip" type="button" data-sort="${k}" aria-pressed="${sort===k}">${l}</button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">Colour</span><div class="chips wrap">${colours.map(c=>chip('colours',c,c,f.colours.includes(c),GEN_HEX[c]||okColour(c))).join('')||'<small class="muted">No colours yet</small>'}</div></div>
+    <div class="field"><span class="lbl">Season</span><div class="chips wrap">${SEASONS.map(([k,l])=>chip('seasons',k,l,f.seasons.includes(k))).join('')}</div></div>
+    <div class="field"><span class="lbl">How dressy</span><div class="chips wrap">${DRESS_FILTERS.map(([k,l])=>chip('dress',k,l,f.dress===k)).join('')}</div></div>
+    ${styles.length?`<div class="field"><span class="lbl">Style</span><div class="chips wrap">${styles.map(c=>chip('styles',c,c,f.styles.includes(c))).join('')}</div></div>`:''}
+    <div class="field"><span class="lbl">Wear</span><div class="chips wrap">${WORN_FILTERS.map(([k,l])=>chip('worn',k,l,f.worn===k)).join('')}</div></div>
+    <div class="btns"><button class="btn primary" type="button" id="fsApply"></button><button class="btn" type="button" id="fsClear">Clear all</button></div>`);
+  const W=wear().items;
+  const upd=()=>{const n=all.filter(([id,i])=>(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeOf(i)===S.type)&&fPass(id,i,f,W)).length;sh.querySelector('#fsApply').textContent=`Show ${n} piece${n===1?'':'s'}`;
+    sh.querySelectorAll('[data-fk]').forEach(b=>{const k=b.dataset.fk,v=b.dataset.fv;b.setAttribute('aria-pressed',Array.isArray(f[k])?f[k].includes(v):f[k]===v)});
+    sh.querySelectorAll('[data-sort]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.sort===sort))};
+  sh.addEventListener('click',e=>{
+    const c=e.target.closest('[data-fk]');if(c){const k=c.dataset.fk,v=c.dataset.fv;if(Array.isArray(f[k]))f[k]=f[k].includes(v)?f[k].filter(x=>x!==v):[...f[k],v];else f[k]=f[k]===v?'':v;upd();return}
+    const so=e.target.closest('[data-sort]');if(so){sort=so.dataset.sort;upd();return}
+    if(e.target.closest('#fsClear')){f.colours=[];f.seasons=[];f.dress='';f.styles=[];f.worn='';sort='new';upd();return}
+    if(e.target.closest('#fsApply')){S.f=f;S.sort=sort;closeSheet();refreshCloset();scrollTo(0,0)}
+  });
+  upd();
+}
+function refreshCloset(){const all=closetItems(),c=$('.cats'),sc=$('#subcats'),fb=$('#fsbar'),r=$('#results');
+  if(!r||S.view!=='closet'){render();return}
+  c.querySelectorAll('[data-group]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.group===S.group));sc.innerHTML=subcatsHTML(all);fb.innerHTML=fsBarHTML();r.innerHTML=closetResults()}
+
 /* Type picker icons: Flaticon icons (free with attribution; authors credited in the Stats tab and README),
    redrawn at one uniform line width. The 'All' icon is drawn for this app. */
 const ICON={
@@ -652,20 +712,27 @@ const ICON={
   shortsleeves:'<img class="ico" src="icons/shortsleeves.png" alt="" draggable="false">',
   longsleeves:'<img class="ico" src="icons/longsleeves.png" alt="" draggable="false">',
   crewnecks:'<img class="ico" src="icons/crewnecks.png" alt="" draggable="false">',
+  leggings:'<img class="ico" src="icons/leggings.png" alt="" draggable="false">',
+  rompers:'<img class="ico" src="icons/rompers.png" alt="" draggable="false">',
+  bras:'<img class="ico" src="icons/bras.png" alt="" draggable="false">',
+  underwear:'<img class="ico" src="icons/underwear.png" alt="" draggable="false">',
+  tights:'<img class="ico" src="icons/tights.png" alt="" draggable="false">',
   tanktops:'<img class="ico" src="icons/tanktops.png" alt="" draggable="false">',
   vests:'<img class="ico" src="icons/vests.png" alt="" draggable="false">',
   other:'<img class="ico" src="icons/other.png" alt="" draggable="false">'};
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
-  'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Tops':'tops','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'tops',Bottoms:'pants','One-pieces':'dresses',Outerwear:'jackets',Shoes:'footwear',Bags:'bags',Accessories:'hats',Other:'other'};
+  'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
+const GROUP_ICON={Tops:'shortsleeves',Bottoms:'jeans','Full length':'dresses',Jackets:'jackets',Undergarments:'bras',Shoes:'heels',Accessories:'bags',Other:'other'};
+function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
   if(TYPE_ICON[t])return ICON[TYPE_ICON[t]];
   const g=[...S.items.values()].find(i=>i.type===t)?.group;return ICON[GROUP_ICON[g]||'other'];
 }
-function catBtn(val,label,count){
-  return `<button class="cat" type="button" data-type="${esc(val)}" aria-pressed="${S.type===val}" aria-label="${esc(label)}, ${count}"><span class="cic">${typeIcon(val)}<span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
+function catBtn(val,label,count,kind='type'){
+  const on=kind==='group'?S.group===val:S.type===val;
+  return `<button class="cat" type="button" data-${kind}="${esc(val)}" aria-pressed="${on}" aria-label="${esc(label)}, ${count}"><span class="cic">${kind==='group'?groupIcon(val):typeIcon(val)}<span class="cn">${count}</span></span><span class="cl">${esc(label)}</span></button>`;
 }
 
 function itemCard(id,i,W){
@@ -679,13 +746,18 @@ function itemCard(id,i,W){
 }
 function closetResults(){
   const W=wear().items,q=S.q.toLowerCase();
-  let list=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet)&&(S.type==='All'||typeOf(i)===S.type)&&(!S.colour||itemColours(i).includes(S.colour))&&(!S.style||(i.style||'').trim().toLowerCase()===S.style)&&fitsSeason(i,S.season)&&(!q||[i.name,...itemColours(i),i.style,typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
+  let list=[...S.items.entries()].filter(([id,i])=>inCloset(i,S.closet)&&(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeOf(i)===S.type)&&fPass(id,i,S.f,W)&&(!q||[i.name,...itemColours(i),i.style,typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
   const sorters={
     new:(a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0),
     priceHi:(a,b)=>(Number(b[1].price)||0)-(Number(a[1].price)||0),
     least:(a,b)=>(W[a[0]]?.worn.length||0)-(W[b[0]]?.worn.length||0),
     longest:(a,b)=>(last(W[a[0]])||'0000').localeCompare(last(W[b[0]])||'0000'),
-    name:(a,b)=>(a[1].name||'').localeCompare(b[1].name||'')};
+    name:(a,b)=>(a[1].name||'').localeCompare(b[1].name||''),
+    old:(a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0),
+    priceLo:(a,b)=>(Number(a[1].price)||Infinity)-(Number(b[1].price)||Infinity),
+    most:(a,b)=>(W[b[0]]?.worn.length||0)-(W[a[0]]?.worn.length||0),
+    dressHi:(a,b)=>dressOf(b[1])-dressOf(a[1]),dressLo:(a,b)=>dressOf(a[1])-dressOf(b[1]),
+    colour:(a,b)=>{const o=GENERIC.map(g=>g[0]);return((o.indexOf(genericName(a[1].colour))+1)||99)-((o.indexOf(genericName(b[1].colour))+1)||99)}};
   list.sort(sorters[S.sort]||sorters.new);
   if(!list.length)return `<p class="muted">Nothing matches those filters.</p>`;
   return `<div class="grid">${list.map(([id,i])=>itemCard(id,i,W)).join('')}</div>`;
@@ -713,7 +785,8 @@ const OCCASIONS=[['','Any occasion',1,10],['casual','Casual',1,4],['everyday','E
 const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
-  const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&groupOf(i)===group&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
+  const inPool=i=>group==='Bags'?typeOf(i)==='Bags':group==='Accessories'?groupOf(i)==='Accessories'&&typeOf(i)!=='Bags':groupOf(i)===group;
+  const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
   return fit.length||loose===false?fit:base;
@@ -746,12 +819,12 @@ function weightedPick(entries,W,chosen=[],ctx=null){
 function doShuffle(){
   const sh=S.shuf,W=wear().items,L=sh.locks,slots={};
   for(const k of L)if(sh.slots[k]&&S.items.has(sh.slots[k]))slots[k]=sh.slots[k];
-  const P={top:shufPool('Tops'),bottom:shufPool('Bottoms'),one:shufPool('One-pieces'),shoes:shufPool('Shoes'),outer:shufPool('Outerwear'),bag:shufPool('Bags'),acc:shufPool('Accessories')};
+  const P={top:shufPool('Tops'),bottom:shufPool('Bottoms'),one:shufPool('Full length'),shoes:shufPool('Shoes'),outer:shufPool('Jackets'),bag:shufPool('Bags'),acc:shufPool('Accessories')};
   let mode;
   if(slots.one)mode='one';else if(slots.top||slots.bottom)mode='sep';
   else{
     // prefer the kind of outfit that actually fits the season and occasion; fall back only if neither does
-    const Q={top:shufPool('Tops',false),bottom:shufPool('Bottoms',false),one:shufPool('One-pieces',false)};
+    const Q={top:shufPool('Tops',false),bottom:shufPool('Bottoms',false),one:shufPool('Full length',false)};
     let canSep=Q.top.length&&Q.bottom.length,canOne=Q.one.length;
     if(canSep||canOne){for(const k of['top','bottom','one'])if(Q[k].length)P[k]=Q[k]}else{canSep=P.top.length&&P.bottom.length;canOne=P.one.length}
     mode=canSep&&canOne?(Math.random()<.3?'one':'sep'):canOne?'one':canSep?'sep':null}
@@ -766,7 +839,7 @@ function doShuffle(){
   sh.slots=slots;for(const k of[...L])if(!slots[k])L.delete(k);
 }
 const slotName=k=>SLOTNAME[k]||(k.startsWith('with')?'Worn with':k);
-const SLOTNAME={top:'Top',bottom:'Bottom',one:'Dress / jumpsuit',shoes:'Shoes',outer:'Outerwear',bag:'Bag',acc:'Accessory'};
+const SLOTNAME={top:'Top',bottom:'Bottom',one:'Full length',shoes:'Shoes',outer:'Jacket',bag:'Bag',acc:'Accessory'};
 function shuffleView(){
   if(!S.ready)return '';
   const sh=S.shuf;if(sh.closet!=='all'&&!S.closets.has(sh.closet))sh.closet='all';
@@ -777,7 +850,7 @@ function shuffleView(){
     <div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
       <select id="shStyle" aria-label="Style"><option value="">Any style</option>${styles.map(s=>`<option ${sh.style===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
-    <div class="chips" role="group" aria-label="Add to the outfit">${[['outer','Outerwear'],['bag','Bag'],['acc','Accessory']].map(([k,l])=>`<button class="chip" type="button" data-shopt="${k}" aria-pressed="${!!sh[k]}">+ ${l}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Add to the outfit">${[['outer','Jacket'],['bag','Bag'],['acc','Accessory']].map(([k,l])=>`<button class="chip" type="button" data-shopt="${k}" aria-pressed="${!!sh[k]}">+ ${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
     ${boardHTML(ids,null,'big')}
     <div class="slots">${Object.entries(sh.slots).map(([k,id])=>{const it=S.items.get(id);return `<div class="slot"><span class="mini ${it?.cutout&&hasImg(it)?'cut':''}">${thumb(it)}</span><span class="tx"><small>${slotName(k)}</small><b>${esc(it?.name)}</b></span><button type="button" class="lock" data-lock="${k}" aria-pressed="${sh.locks.has(k)}">${sh.locks.has(k)?'Locked':'Lock'}</button></div>`}).join('')}</div>
@@ -928,10 +1001,10 @@ function statsBody(){
   const wornCount=id=>W[id]?.worn.length||0;
   const neverOrStale=its.filter(([id])=>{const l=last(W[id]);return !l||daysAgo(l)>=90});
   const usedPct=Math.round((its.length-neverOrStale.length)/its.length*100);
-  const bars=(rows,max,fmt)=>`<div class="bars">${rows.map(r=>`<div class="bar"><span class="bl">${r.sw?`<span class="sw" style="background:${r.sw}"></span>`:''}${esc(r.label)}</span><span class="bt"><span style="width:${Math.max(2,r.v/max*100)}%"></span></span><span class="bv">${fmt(r)}</span></div>`).join('')}</div>`;
-  const byType={};for(const[,i]of its){const t=typeOf(i);(byType[t]??={label:t,v:0,val:0}).v++;byType[t].val+=Number(i.price)||0}
+  const bars=(rows,max,fmt)=>`<div class="bars">${rows.map(r=>`<${r.go?`button type="button" data-go="${esc(r.go)}" aria-label="Show ${esc(r.label)}"`:'div'} class="bar${r.go?' barbtn':''}"><span class="bl">${r.sw?`<span class="sw" style="background:${r.sw}"></span>`:''}${esc(r.label)}</span><span class="bt"><span style="width:${Math.max(2,r.v/max*100)}%"></span></span><span class="bv">${fmt(r)}${r.go?' ›':''}</span></${r.go?'button':'div'}>`).join('')}</div>`;
+  const byType={};for(const[,i]of its){const t=typeOf(i);(byType[t]??={label:t,v:0,val:0,go:'type:'+t}).v++;byType[t].val+=Number(i.price)||0}
   const typeRows=Object.values(byType).sort((a,b)=>b.v-a.v);
-  const byCol={};for(const[,i]of its){const k=genericName(i.colour)||'no colour';(byCol[k]??={label:k,v:0,sw:GEN_HEX[k]||okColour(k)}).v++}
+  const byCol={};for(const[,i]of its){const k=genericName(i.colour)||'no colour';(byCol[k]??={label:k,v:0,sw:GEN_HEX[k]||okColour(k),go:'colour:'+k}).v++}
   const colRows=Object.values(byCol).sort((a,b)=>b.v-a.v).slice(0,8);
   const most=its.filter(([id])=>wornCount(id)).sort((a,b)=>wornCount(b[0])-wornCount(a[0])).slice(0,5);
   const cpw=priced.filter(([id])=>wornCount(id)).map(([id,i])=>[id,i,Number(i.price)/wornCount(id)]).sort((a,b)=>a[2]-b[2]).slice(0,5);
@@ -967,12 +1040,18 @@ document.addEventListener('click',e=>{
   const lf=e.target.closest('[data-lookf]');if(lf){S.lookFilter=lf.dataset.lookf;render();return}
   const dc=e.target.closest('[data-dc]');if(dc){dc.dataset.dc==='start'?declutterSheet():leavingSheet();return}
   const wx=e.target.closest('[data-wx]');if(wx){const a=wx.dataset.wx;if(a==='here')wxUseHere();else if(a==='change'){WX.setup=true;WX.err='';render()}else if(a==='cancel'){WX.setup=false;WX.err='';render()}else if(a==='hide'){ls.set('closet.wx.off','1');render()}else if(a==='show'){ls.set('closet.wx.off',null);WX.setup=true;render()}return}
-  const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';ls.set('closet.current',S.closet);render();return}
+  const cl=e.target.closest('[data-closet]');if(cl){S.closet=cl.dataset.closet;S.type='All';S.group='All';ls.set('closet.current',S.closet);render();return}
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
   const so=e.target.closest('[data-shopt]');if(so){const k=so.dataset.shopt;S.shuf[k]=!S.shuf[k];if(!S.shuf[k]){delete S.shuf.slots[k];S.shuf.locks.delete(k)}doShuffle();render();return}
   const lk=e.target.closest('[data-lock]');if(lk){const k=lk.dataset.lock,L=S.shuf.locks;L.has(k)?L.delete(k):L.add(k);render();return}
-  const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;const res=$('#results');if(res&&S.view==='closet'){document.querySelectorAll('.cats [data-type]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.type===S.type));res.innerHTML=closetResults()}else render();return}
+  const gr=e.target.closest('[data-group]');if(gr){S.group=gr.dataset.group;S.type='All';refreshCloset();return}
+  const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;refreshCloset();return}
+  if(e.target.closest('#fsBtn')){filterSheet();return}
+  const fx=e.target.closest('[data-fx]');if(fx){const v=fx.dataset.fx;if(v==='all')S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};else{const[k,...r]=v.split(':'),x=r.join(':');if(Array.isArray(S.f[k]))S.f[k]=S.f[k].filter(y=>y!==x);else S.f[k]=''}refreshCloset();return}
+  const go=e.target.closest('[data-go]');if(go){const[k,...r]=go.dataset.go.split(':'),v=r.join(':');S.view='closet';ls.set('closet.view','closet');S.closet=S.statsCloset||'all';S.q='';S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};S.group='All';S.type='All';
+    if(k==='type'){S.group=GROUP_OF[v]||[...S.items.values()].find(i=>typeOf(i)===v)?.group||'Other';S.type=v}else if(k==='colour'&&v!=='no colour')S.f.colours=[v];render();scrollTo(0,0);return}
+
   const it=e.target.closest('[data-item]');if(it){itemSheet(it.dataset.item);return}
   const of=e.target.closest('[data-outfit]');if(of){outfitSheet(of.dataset.outfit);return}
   const dy=e.target.closest('[data-day]');if(dy){daySheet(dy.dataset.day);return}
@@ -1027,13 +1106,13 @@ async function guard(btn,fn){btn.disabled=true;try{await fn()}catch(err){console
 
 function typeOptions(cur){
   const own=[...new Set([...S.items.values()].map(typeOf).filter(t=>!GROUP_OF[t]))];if(cur&&!GROUP_OF[cur]&&!own.includes(cur))own.push(cur);
-  return TYPE_ORDER.map(t=>`<option ${cur===t?'selected':''}>${t}</option>`).join('')+(own.length?`<optgroup label="Your own">${own.map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}</optgroup>`:'');
+  return GROUPS.map(([g,ts])=>`<optgroup label="${g}">${ts.map(t=>`<option ${cur===t?'selected':''}>${t}</option>`).join('')}</optgroup>`).join('')+(own.length?`<optgroup label="Your own">${own.map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}</optgroup>`:'');
 }
 
 function bulkSheet(){
   const closets=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
   const defCloset=S.closet!=='all'&&S.closets.has(S.closet)?S.closet:MAIN;
-  const sh=openSheet(`${head('Add many pieces')}
+  const sh=openSheet(`${head('Upload items')}
     <p class="muted" style="margin:0">Choose several photos, one piece of clothing per photo. Each photo becomes its own item, with its background removed.</p>
     ${closets.length>1?`<div class="field"><label for="bCloset">Add to closet</label><select id="bCloset">${closets.map(([cid,c])=>`<option value="${cid}" ${cid===defCloset?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>`:''}
     <label class="check"><input type="checkbox" id="bAuto" ${ls.get('closet.autoDetect')!=='off'?'checked':''}> Name and sort them automatically</label>
@@ -1083,7 +1162,7 @@ function bulkSheet(){
 
 function typeSelect(cur){
   const known=GROUP_OF[cur]||!cur;
-  return `<select id="fType">${TYPE_ORDER.map(t=>`<option ${(cur||'Tops')===t?'selected':''}>${t}</option>`).join('')}
+  return `<select id="fType">${GROUPS.map(([g,ts])=>`<optgroup label="${g}">${ts.map(t=>`<option ${(cur||'Long sleeves')===t?'selected':''}>${t}</option>`).join('')}</optgroup>`).join('')}
     <optgroup label="Your own">${[...new Set([...S.items.values()].map(typeOf).filter(t=>!GROUP_OF[t]))].map(t=>`<option ${cur===t?'selected':''}>${esc(t)}</option>`).join('')}${!known&&![...S.items.values()].some(i=>i.type===cur)?`<option selected>${esc(cur)}</option>`:''}<option value="__new">New type…</option></optgroup></select>`;
 }
 
@@ -1537,12 +1616,12 @@ const dE=(a,b)=>Math.hypot((a[0]-b[0])*.5,a[1]-b[1],a[2]-b[2]);
 const isT=(...t)=>i=>t.includes(typeOf(i));
 const inG=(...g)=>i=>g.includes(groupOf(i));
 const SEG_REGIONS=[
-  {key:'top',label:'Top',cls:[4],min:.012,ok:i=>inG('Tops','Outerwear')(i)},
-  {key:'dress',label:'Dress',cls:[7],min:.02,ok:inG('One-pieces')},
+  {key:'top',label:'Top',cls:[4],min:.012,ok:i=>inG('Tops','Jackets')(i)},
+  {key:'dress',label:'Dress',cls:[7],min:.02,ok:inG('Full length')},
   {key:'pants',label:'Bottoms',cls:[6],min:.01,ok:i=>(inG('Bottoms')(i)&&!isT('Skirts')(i))||isT('Activewear','Jumpsuits')(i)},
   {key:'skirt',label:'Skirt',cls:[5],min:.008,ok:isT('Skirts','Shorts')},
   {key:'shoes',label:'Shoes',cls:[9,10],min:.0015,ok:inG('Shoes'),all:true},
-  {key:'bag',label:'Bag',cls:[16],min:.003,ok:inG('Bags')},
+  {key:'bag',label:'Bag',cls:[16],min:.003,ok:isT('Bags')},
   {key:'hat',label:'Hat',cls:[1],min:.003,ok:isT('Hats')},
   {key:'glasses',label:'Glasses',cls:[3],min:.001,ok:isT('Glasses')}];
 // connected components of the pixels where keep(i) is true; returns arrays of indices, biggest first
@@ -1795,8 +1874,10 @@ const SEASONS=[['winter','Winter','<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.
   ['summer','Summer','<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>'],
   ['fall','Fall','<path d="M5 19C5 11 11 5 19 5c0 8-6 14-14 14z"/><path d="M5 19l8.5-8.5"/>']];
 const seasonIcon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${(SEASONS.find(s=>s[0]===k)||[])[2]||''}</svg>`;
-const DRESS_WORDS=[[2,'Work on the car'],[4,'Casual'],[6,'Everyday'],[8,'Dressy'],[10,'Formal / black-tie']];
-const dressWord=v=>v?DRESS_WORDS.find(([m])=>v<=m)[1]:'Not rated';
+const DRESS_WORDS=['','Working on the car','Lounging at home','Gym & errands','Casual hangout','Everyday / class','Smart casual','Office / dinner out','Date night / party','Wedding guest','Black-tie'];
+const dressWord=v=>v?DRESS_WORDS[v]:'Not rated';
+// fill the track exactly up to the centre of the 26px thumb
+const dressFill=(r,v)=>{const p=(v-1)/9*100;r.style.setProperty('--fill',v?`calc(${p}% + ${(.5-p/100)*26}px)`:'0%')};
 const isTagged=i=>i.seasons!==undefined||i.dress!=null;
 // season right now: from today's forecast when we have it, otherwise from the month (northern hemisphere)
 function currentSeason(){
@@ -1830,11 +1911,13 @@ function guessSeasons(i){
   if(['Cardigans','Jackets','Blazers','Vests'].includes(t))return['spring','fall','winter'];
   if(['Tank tops','Shorts'].includes(t)||has('sleeveless','strappy','cami'))return['spring','summer'];
   if(t==='Dresses')return has('long-sleeve','knit','sweater')?['fall','winter','spring']:['spring','summer','fall'];
-  if(t==='Tops'&&has('long-sleeve'))return['spring','fall','winter'];
+  if(t==='Blouses'&&has('long-sleeve'))return['spring','fall','winter'];
+  if(t==='Tights')return['fall','winter'];
+  if(t==='Rompers')return['spring','summer'];
   return[];
 }
 function guessDress(i){
-  const base={Activewear:1,Hoodies:2,Crewnecks:2,'Short sleeves':3,'Long sleeves':4,Jeans:3,'Tank tops':3,Footwear:3,Shorts:2,Tops:4,Sweaters:4,Cardigans:4,Jackets:4,Vests:4,Overalls:3,Bodysuits:5,Pants:5,Skirts:5,Coats:5,
+  const base={Activewear:1,Hoodies:2,Crewnecks:2,'Short sleeves':3,'Long sleeves':4,Jeans:3,'Tank tops':3,Footwear:3,Shorts:2,Blouses:6,Leggings:2,Rompers:4,Bras:3,Underwear:3,Tights:5,Sweaters:4,Cardigans:4,Jackets:4,Vests:4,Overalls:3,Bodysuits:5,Pants:5,Skirts:5,Coats:5,
     Bags:5,Belts:5,Hats:3,Glasses:4,Jewelry:6,Dresses:6,Jumpsuits:6,Blazers:7,Heels:7}[typeOf(i)]||4;
   const n=(i.name||'').toLowerCase(),has=(...w)=>w.some(x=>n.includes(x));let d=base;
   if(has('sequin','satin','silk','gown','maxi','lace','velvet','pumps'))d+=2;
@@ -1847,13 +1930,14 @@ function tagsHTML(i){
   return `<div class="field"><span class="lbl">Seasons <small class="muted" style="text-transform:none;letter-spacing:0">(none picked = any season)</small></span>
       <div class="seasons" role="group" aria-label="Seasons">${SEASONS.map(([k,l])=>`<button type="button" class="sea" data-sea="${k}" aria-pressed="${sel.has(k)}">${seasonIcon(k)}<small>${l}</small></button>`).join('')}</div></div>
     <div class="field"><label for="fDress">How dressy <b id="dressV" class="dressv">${d?`${d} · ${dressWord(d)}`:'Not rated'}</b></label>
-      <input type="range" id="fDress" min="1" max="10" step="1" value="${d||5}" class="${d?'':'unset'}" aria-valuetext="${d?`${d}, ${dressWord(d)}`:'Not rated'}">
-      <div class="dressends"><small>1 · Work on the car</small><small>10 · Black-tie</small></div></div>`;
+      <input type="range" id="fDress" min="1" max="10" step="1" value="${d||5}" class="${d?'':'unset'}" style="--fill:${d?`calc(${(d-1)/9*100}% + ${(.5-(d-1)/9)*26}px)`:'0%'}" aria-valuetext="${d?`${d}, ${dressWord(d)}`:'Not rated'}">
+      <div class="dressticks" aria-hidden="true">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<span style="left:calc(${(n-1)/9*100}% + ${(.5-(n-1)/9)*26}px)">${n}</span>`).join('')}</div>
+      <div class="dressends"><small>Working on the car</small><small>Black-tie</small></div></div>`;
 }
 function wireTags(sh,state){
   sh.querySelectorAll('[data-sea]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.sea;state.seasons.has(k)?state.seasons.delete(k):state.seasons.add(k);b.setAttribute('aria-pressed',state.seasons.has(k));state.touched=true}));
   const r=sh.querySelector('#fDress'),v=sh.querySelector('#dressV');
-  r.addEventListener('input',()=>{state.dress=Number(r.value);r.classList.remove('unset');v.textContent=`${r.value} · ${dressWord(state.dress)}`;r.setAttribute('aria-valuetext',`${r.value}, ${dressWord(state.dress)}`);state.touched=true});
+  r.addEventListener('input',()=>{state.dress=Number(r.value);r.classList.remove('unset');dressFill(r,state.dress);v.textContent=`${r.value} · ${dressWord(state.dress)}`;r.setAttribute('aria-valuetext',`${r.value}, ${dressWord(state.dress)}`);state.touched=true});
 }
 function pairsHTML(id){
   return `<div class="field"><span class="lbl">Always wear with <small class="muted" style="text-transform:none;letter-spacing:0">(any one of these, like an undershirt)</small></span>
@@ -1917,13 +2001,13 @@ function quickTagSheet(){
 
 
 /* ---------- sort existing pieces into the newer top categories (you approve each move) ---------- */
-const SORT_INTO=['Tops','Short sleeves','Long sleeves','Crewnecks','Sweaters','Hoodies','Tank tops'];
+const SORT_INTO=['Blouses','Short sleeves','Long sleeves','Crewnecks','Sweaters','Hoodies','Tank tops'];
 function sortKeyword(n){n=(n||'').toLowerCase();
   if(/hoodie|zip-up/.test(n))return'Hoodies';if(/crewneck|sweatshirt/.test(n))return'Crewnecks';
   if(/long[- ]?sleeve/.test(n))return'Long sleeves';if(/short[- ]?sleeve|t-shirt|\btee\b/.test(n))return'Short sleeves';
-  if(/tank|cami|sleeveless/.test(n))return'Tank tops';if(/blouse|button|shirt\b/.test(n))return'Tops';return null}
+  if(/tank|cami|sleeveless/.test(n))return'Tank tops';if(/blouse|button|shirt\b/.test(n))return'Blouses';return null}
 async function sortSuggestions(status){
-  const its=[...S.items.entries()].filter(([,i])=>['Tops','Sweaters','Hoodies'].includes(i.type)&&i.imageId&&URLS.has(i.imageId));
+  const its=[...S.items.entries()].filter(([,i])=>['Blouses','Sweaters','Hoodies'].includes(i.type)&&i.imageId&&URLS.has(i.imageId));
   const T=await clipText('sort3',SORT_INTO.map(t=>`a product photo of ${TYPE_PHRASE[t]}`));const out=[];
   for(let k=0;k<its.length;k++){const[id,i]=its[k];status(`Looking at your tops (${k+1} of ${its.length})…`);
     const kw=sortKeyword(i.name);let to=kw,p=1;
@@ -1973,13 +2057,14 @@ render();
       await idbPut('items',iid,v);S.items.set(iid,v);
     }
     // retired types -> the owner's categories; auto-made names ("Black heels") follow the new type
-    {const MOVE={'T-shirts':'Tops','Shirts':'Tops','Blouses':'Tops','Leggings':'Pants','Sweatpants':'Pants','Sneakers':'Footwear','Boots':'Footwear','Shoes':'Footwear','Flats':'Footwear',
+    {const MOVE={'Tops':'Blouses','T-shirts':'Short sleeves','Shirts':'Blouses','Sweatpants':'Pants','Sneakers':'Footwear','Boots':'Footwear','Shoes':'Footwear','Flats':'Footwear',
       'Sandals':'Footwear','Loafers':'Footwear','Sunglasses':'Glasses','Watches':'Jewelry','Scarves':'Other','Sleepwear':'Other','Swimwear':'Other'};
      const OLD={'T-shirts':'t-shirt','Shirts':'shirt','Blouses':'blouse','Leggings':'leggings','Sweatpants':'sweatpants','Sneakers':'sneakers','Boots':'boots','Shoes':'shoes','Heels':'heels','Flats':'flats','Sandals':'sandals',
       'Loafers':'loafers','Sunglasses':'sunglasses','Watches':'watch','Scarves':'scarf','Sleepwear':'pajamas','Swimwear':'swimsuit'};
      const cap=w=>w?w[0].toUpperCase()+w.slice(1):w;
-     for(const[iid,it]of S.items){const nt=MOVE[it.type];if(!nt)continue;const c=genericName(it.colour),v={...it,type:nt,group:GROUP_OF[nt],updatedAt:Date.now()};
-       if(c&&it.name===`${cap(c)} ${OLD[it.type]}`&&nt!=='Other')v.name=`${cap(c)} ${SINGULAR[nt]}`;await idbPut('items',iid,v);S.items.set(iid,v)}}
+     for(const[iid,it]of S.items){const g=GROUP_OF[it.type];if(!MOVE[it.type]&&g&&it.group!==g){const v={...it,group:g,updatedAt:Date.now()};await idbPut('items',iid,v);S.items.set(iid,v);continue}
+       const nt=MOVE[it.type];if(!nt)continue;const c=genericName(it.colour),v={...it,type:nt,group:GROUP_OF[nt],updatedAt:Date.now()};
+       if(c&&OLD[it.type]&&it.name===`${cap(c)} ${OLD[it.type]}`&&nt!=='Other')v.name=`${cap(c)} ${SINGULAR[nt]}`;await idbPut('items',iid,v);S.items.set(iid,v)}}
     if(!S.closets.has(MAIN)&&!S.deleted.has('closets/'+MAIN)){const c={name:'My Closet',createdAt:1,updatedAt:1};await idbPut('closets',MAIN,c);S.closets.set(MAIN,c)}
     for(const[id,b]of await idbAll('images'))URLS.set(id,URL.createObjectURL(b));
     S.ready=true;
