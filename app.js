@@ -610,7 +610,7 @@ function closetView(){
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
   if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
   return top+`
-    <div class="cats" role="group" aria-label="Category">${groupRow(all)}</div>
+    <div class="cats cgrid" role="group" aria-label="Category">${groupRow(all)}</div>
     <div id="subcats">${subcatsHTML(all)}</div>
     <input class="search" id="q" type="search" placeholder="Search your closet" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(S.q)}" aria-label="Search closet">
     <div id="fsbar">${fsBarHTML()}</div><div id="results">${closetResults()}</div>`;
@@ -618,9 +618,9 @@ function closetView(){
 const closetItems=()=>[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
 function groupRow(all){
   const cnt={};for(const[,i]of all){const g=groupOf(i);cnt[g]=(cnt[g]||0)+1}
-  const show=[...MAIN_GROUPS,...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
+  const show=[...MAIN_GROUPS,'Shoes','Accessories',...GROUPS.map(g=>g[0]).filter(g=>!MAIN_GROUPS.includes(g)&&g!=='Shoes'&&g!=='Accessories'&&cnt[g]),...Object.keys(cnt).filter(g=>!GROUP_OF_GROUP(g))];
   if(S.group!=='All'&&!show.includes(S.group))S.group='All';
-  return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g,cnt[g]||0,'group')).join('');
+  return catBtn('All','All',all.length,'group')+show.map(g=>catBtn(g,g==='Undergarments'?'Under­garments':g,cnt[g]||0,'group')).join('');
 }
 const GROUP_OF_GROUP=g=>GROUPS.some(x=>x[0]===g);
 function subcatsHTML(all){
@@ -717,13 +717,16 @@ const ICON={
   bras:'<img class="ico" src="icons/bras.png" alt="" draggable="false">',
   underwear:'<img class="ico" src="icons/underwear.png" alt="" draggable="false">',
   tights:'<img class="ico" src="icons/tights.png" alt="" draggable="false">',
+  grp_tops:'<img class="ico" src="icons/grp_tops.png" alt="" draggable="false">',
+  grp_bottoms:'<img class="ico" src="icons/grp_bottoms.png" alt="" draggable="false">',
+  grp_fulllength:'<img class="ico" src="icons/grp_fulllength.png" alt="" draggable="false">',
   tanktops:'<img class="ico" src="icons/tanktops.png" alt="" draggable="false">',
   vests:'<img class="ico" src="icons/vests.png" alt="" draggable="false">',
   other:'<img class="ico" src="icons/other.png" alt="" draggable="false">'};
 const TYPE_ICON={'Activewear':'activewear','Bags':'bags','Belts':'belts','Blazers':'blazers','Bodysuits':'bodysuits','Cardigans':'cardigans','Coats':'coats',
   'Dresses':'dresses','Footwear':'footwear','Heels':'heels','Glasses':'glasses','Hats':'hats','Jackets':'jackets','Jeans':'jeans','Jewelry':'jewelry','Jumpsuits':'jumpsuits',
   'Overalls':'overalls','Pants':'pants','Shorts':'shorts','Skirts':'skirts','Sweaters':'sweaters','Hoodies':'hoodies','Blouses':'tops','Leggings':'leggings','Rompers':'rompers','Bras':'bras','Underwear':'underwear','Tights':'tights','Short sleeves':'shortsleeves','Long sleeves':'longsleeves','Crewnecks':'crewnecks','Tank tops':'tanktops','Vests':'vests','Other':'other'};
-const GROUP_ICON={Tops:'shortsleeves',Bottoms:'jeans','Full length':'dresses',Jackets:'jackets',Undergarments:'bras',Shoes:'heels',Accessories:'bags',Other:'other'};
+const GROUP_ICON={Tops:'grp_tops',Bottoms:'grp_bottoms','Full length':'grp_fulllength',Jackets:'jackets',Undergarments:'bras',Shoes:'heels',Accessories:'hats',Other:'other'};
 function groupIcon(g){if(g==='All')return ICON.all;return ICON[GROUP_ICON[g]||'other']}
 function typeIcon(t){
   if(t==='All')return ICON.all;
@@ -1044,7 +1047,7 @@ function statsBody(){
     <h3>Most worn</h3>${most.length?`<div class="list">${most.map(([id,i])=>li(id,i,`Worn ${wornCount(id)}× · last ${ago(last(W[id]))}`)).join('')}</div>`:'<p class="muted" style="margin:0">Log outfits on the calendar to see this.</p>'}
     <h3>Best value</h3>${cpw.length?`<div class="list">${cpw.map(([id,i,v])=>li(id,i,`${money(Math.round(v*100)/100)} per wear · ${money(i.price)} total`)).join('')}</div>`:'<p class="muted" style="margin:0">Add prices and log what you wear to see cost per wear.</p>'}
     <h3>Not worn in 90+ days · ${neverOrStale.length}</h3>${neverOrStale.length?`<div class="list">${neverOrStale.slice(0,12).map(([id,i])=>li(id,i,last(W[id])?`Last worn ${fmtDate(last(W[id]))}`:'Never worn')).join('')}</div>`:'<p class="muted" style="margin:0">You’ve worn everything recently.</p>'}
-    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, Irfansusanto20, JoeKanaka, iconnut, bqlqn and Nabila30. Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
+    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, Irfansusanto20, JoeKanaka, iconnut, bqlqn, Nabila30, Nur syifa fauziah and Shakeel Ch. Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
 }
 
 /* ---------- main view events ---------- */
