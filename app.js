@@ -683,9 +683,9 @@ function refreshCloset(){const all=closetItems(),c=$('.cats'),sc=$('#subcats'),f
   c.querySelectorAll('[data-group]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.group===S.group));sc.innerHTML=subcatsHTML(all);fb.innerHTML=fsBarHTML();r.innerHTML=closetResults()}
 
 /* Type picker icons: Flaticon icons (free with attribution; authors credited in the Stats tab and README),
-   redrawn at one uniform line width. The 'All' icon is drawn for this app. */
+   redrawn at one uniform line width. */
 const ICON={
-  all:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect stroke-width=".85" x="4" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="9.6" y="4" width="3.6" height="16" rx="1.6"/><rect stroke-width=".85" x="15.4" y="4.6" width="3.6" height="15.4" rx="1.6" transform="rotate(-14 17.2 12.3)"/></svg>',
+  all:'<img class="ico" src="icons/all.png" alt="" draggable="false">',
   activewear:'<img class="ico" src="icons/activewear.png" alt="" draggable="false">',
   bags:'<img class="ico" src="icons/bags.png" alt="" draggable="false">',
   belts:'<img class="ico" src="icons/belts.png" alt="" draggable="false">',
@@ -1047,7 +1047,7 @@ function statsBody(){
     <h3>Most worn</h3>${most.length?`<div class="list">${most.map(([id,i])=>li(id,i,`Worn ${wornCount(id)}× · last ${ago(last(W[id]))}`)).join('')}</div>`:'<p class="muted" style="margin:0">Log outfits on the calendar to see this.</p>'}
     <h3>Best value</h3>${cpw.length?`<div class="list">${cpw.map(([id,i,v])=>li(id,i,`${money(Math.round(v*100)/100)} per wear · ${money(i.price)} total`)).join('')}</div>`:'<p class="muted" style="margin:0">Add prices and log what you wear to see cost per wear.</p>'}
     <h3>Not worn in 90+ days · ${neverOrStale.length}</h3>${neverOrStale.length?`<div class="list">${neverOrStale.slice(0,12).map(([id,i])=>li(id,i,last(W[id])?`Last worn ${fmtDate(last(W[id]))}`:'Never worn')).join('')}</div>`:'<p class="muted" style="margin:0">You’ve worn everything recently.</p>'}
-    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, Irfansusanto20, JoeKanaka, iconnut, bqlqn, Nabila30, Nur syifa fauziah and Shakeel Ch. Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
+    <p class="credits">Icons from <a href="https://www.flaticon.com" target="_blank" rel="noopener">Flaticon</a> by Magnific, Smashicons, juicy_fish, Adury5711, Hazicon, Nadiinko, Chanut-is-Industries, Pronicon, Victoruler, photo3idea_studio, Irfansusanto20, JoeKanaka, iconnut, bqlqn, Nabila30, Nur syifa fauziah, Shakeel Ch. and Erifqi Zetiawan Full list in the <a href="https://github.com/AlAgilly/my-closet#credits" target="_blank" rel="noopener">README</a>.</p>`;
 }
 
 /* ---------- main view events ---------- */

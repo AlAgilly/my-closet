@@ -45,6 +45,7 @@ Backgrounds are removed automatically on your device using the open RMBG-1.4 mod
   - Skirts: [Skirt](https://www.flaticon.com/free-icon/skirt_2161139) by Smashicons
   - Sweaters: [Sweater](https://www.flaticon.com/free-icon/sweater_88802) by Magnific
   - Hoodies: [Hoodie](https://www.flaticon.com/free-icon/hoodie_9431851) by juicy_fish
+  - All: [App](https://www.flaticon.com/free-icon/app_13701579) by Erifqi Zetiawan
   - Tops group: [Shirt](https://www.flaticon.com/free-icon/shirt_17071121) by Nur syifa fauziah
   - Bottoms group: [Man](https://www.flaticon.com/free-icon/man_15684562) by Shakeel Ch.
   - Full length group: [Jumpsuit](https://www.flaticon.com/free-icon/jumpsuit_88788) by Magnific
