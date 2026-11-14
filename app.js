@@ -796,7 +796,7 @@ const OCCASIONS=[['','Any occasion',1,10],['casual','Casual',1,4],['everyday','E
 const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
-  const inPool=i=>{const t=typeOf(i);return group==='Shoes'?SHOE_T.includes(t):group==='Head'?HEAD_T.includes(t):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(t)&&!UNDER_T.includes(t)&&!HEAD_T.includes(t):groupOf(i)===group};
+  const inPool=i=>{const t=typeOf(i);return group==='Shoes'?SHOE_T.includes(t):group==='Head'?HEAD_T.includes(t):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(t)&&!UNDER_T.includes(t):groupOf(i)===group};
   const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
@@ -843,8 +843,9 @@ function doShuffle(){
   if(!mode){sh.slots={};sh.err='Add some tops and bottoms (or dresses) to this closet to shuffle outfits.';return}
   sh.err='';
   if(mode==='one'){delete slots.top;delete slots.bottom}else delete slots.one;
-  for(const k of['hat','outer','shoes','acc'])if(!sh.on[k]){delete slots[k];L.delete(k)}
-  const want=[...(mode==='one'?['one']:['top','bottom']),...['outer','shoes','hat','acc'].filter(k=>sh.on[k])];sh.cur=mode;
+  delete slots.hat;L.delete('hat');sh.on.shoes=true;
+  for(const k of['outer','acc'])if(!sh.on[k]){delete slots[k];L.delete(k)}
+  const want=[...(mode==='one'?['one']:['top','bottom']),...['outer','shoes','acc'].filter(k=>k==='shoes'||sh.on[k])];sh.cur=mode;
   // what each row can scroll through: the pieces that fit (colour then name, so it's easy to browse)
   const ord=GENERIC.map(g=>g[0]),srt=a=>[...a].sort((x,y)=>((ord.indexOf(genericName(x[1].colour))+1)||99)-((ord.indexOf(genericName(y[1].colour))+1)||99)||(x[1].name||'').localeCompare(y[1].name||''));
   sh.pools={};for(const k of want){sh.pools[k]=srt(P[k]).map(([id])=>id);if(slots[k]&&!sh.pools[k].includes(slots[k]))sh.pools[k].unshift(slots[k])}
@@ -857,10 +858,10 @@ function doShuffle(){
 }
 const slotName=k=>SLOTNAME[k]||(k.startsWith('with')?'Worn with':k);
 const SLOTNAME={top:'Top',bottom:'Bottom',one:'Full length',shoes:'Shoes',outer:'Jacket',hat:'Hat & hair',bag:'Bag',acc:'Accessory'};
-// top to bottom like an outfit on a person: head, jacket, top, bottom, shoes, then bags & jewelry
-const SHUF_ROWS={sep:['hat','outer','top','bottom','shoes','acc'],one:['hat','outer','one','shoes','acc']};
-const ROW_EMPTY={top:'No tops here yet',bottom:'No bottoms here yet',one:'No full-length pieces here yet',outer:'No jackets here yet',hat:'No hats or hair accessories yet',acc:'No bags or jewelry yet',shoes:'No shoes here yet'};
-const OPTIONAL_ROWS=[['hat','Hat & hair'],['outer','Jacket'],['shoes','Shoes'],['acc','Accessory']];
+// top to bottom: jacket, top, bottom, shoes, then accessories (hats, hair, bags, jewelry…)
+const SHUF_ROWS={sep:['outer','top','bottom','shoes','acc'],one:['outer','one','shoes','acc']};
+const ROW_EMPTY={top:'No tops here yet',bottom:'No bottoms here yet',one:'No full-length pieces here yet',outer:'No jackets here yet',hat:'No hats or hair accessories yet',acc:'No accessories here yet',shoes:'No shoes here yet'};
+const OPTIONAL_ROWS=[['outer','Jacket'],['acc','Accessory']];
 const LOCK_SVG='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function shuffleView(){
   if(!S.ready)return '';
@@ -879,7 +880,7 @@ function shuffleView(){
     <div class="chips" role="group" aria-label="Outfit kind">${[['mix','Mix it up'],['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
     <div class="chips" role="group" aria-label="Include in the outfit">${OPTIONAL_ROWS.map(([k,l])=>`<button class="chip tgl" type="button" data-shon="${k}" aria-pressed="${!!sh.on[k]}">${sh.on[k]?'✓ ':''}${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
-    <div class="srows">${(SHUF_ROWS[sh.cur]||SHUF_ROWS.sep).filter(k=>!sh.on.hasOwnProperty(k)||sh.on[k]).map(row).join('')}</div>
+    <div class="srows">${(SHUF_ROWS[sh.cur]||SHUF_ROWS.sep).filter(k=>!['outer','acc'].includes(k)||sh.on[k]).map(row).join('')}</div>
     ${withs.length?`<p class="muted" style="margin:0;font-size:13px">Worn with: <b>${withs.map(i=>esc(i.name)).join(', ')}</b></p>`:''}
     <div class="btns"><button class="btn primary" type="button" id="shGo">Shuffle</button><button class="btn" type="button" id="shLike" aria-label="I like this outfit">👍</button><button class="btn" type="button" id="shNope" aria-label="Not for me">👎</button><button class="btn" type="button" id="shSave">Save as outfit</button><button class="btn" type="button" id="shWear">Wear today</button></div>
     <p class="muted" style="margin:0;font-size:12px">Swipe a row to pick a piece, tap the lock to keep it, and Shuffle changes the rest. Shuffle learns from 👍, 👎 and what you save and wear.</p>`}`;
@@ -1034,10 +1035,10 @@ function statsView(){
   return declutterCard()+statsBody();
 }
 function statsBody(){
-  const c=S.statsCloset==='all'||S.closets.has(S.statsCloset)?S.statsCloset:'all';
+  const c=S.closet==='all'||S.closets.has(S.closet)?S.closet:'all';  // follows the closet chosen in the title
   const W=wear().items;
   const its=[...S.items.entries()].filter(([,i])=>inCloset(i,c));
-  const head=closetChips(c,'data-statcloset');
+  const head='';
   if(!its.length)return head+empty('No stats yet','Add pieces to see what your closet is worth and what you actually wear.');
   const priced=its.filter(([,i])=>Number(i.price)>0);
   const total=priced.reduce((a,[,i])=>a+Number(i.price),0);
@@ -1097,7 +1098,7 @@ document.addEventListener('click',e=>{
   const ty=e.target.closest('[data-type]');if(ty){S.type=ty.dataset.type;refreshCloset();return}
   if(e.target.closest('#fsBtn')){filterSheet();return}
   const fx=e.target.closest('[data-fx]');if(fx){const v=fx.dataset.fx;if(v==='all')S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};else{const[k,...r]=v.split(':'),x=r.join(':');if(Array.isArray(S.f[k]))S.f[k]=S.f[k].filter(y=>y!==x);else S.f[k]=''}refreshCloset();return}
-  const go=e.target.closest('[data-go]');if(go){const[k,...r]=go.dataset.go.split(':'),v=r.join(':');S.view='closet';ls.set('closet.view','closet');S.closet=S.statsCloset||'all';S.q='';S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};S.group='All';S.type='All';
+  const go=e.target.closest('[data-go]');if(go){const[k,...r]=go.dataset.go.split(':'),v=r.join(':');S.view='closet';ls.set('closet.view','closet');S.q='';S.f={colours:[],seasons:[],dress:'',styles:[],worn:''};S.group='All';S.type='All';
     if(k==='type'){S.group=GROUP_OF[v]||[...S.items.values()].find(i=>typeOf(i)===v)?.group||'Other';S.type=v}else if(k==='colour'&&v!=='no colour')S.f.colours=[v];render();scrollTo(0,0);return}
 
   const it=e.target.closest('[data-item]');if(it){itemSheet(it.dataset.item);return}
