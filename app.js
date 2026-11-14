@@ -54,7 +54,7 @@ const itemColours=it=>[genericName(it?.colour),...(it?.colours2||[])].filter(Boo
 const COLS=['closets','items','outfits','plans','looks','prefs'];
 const MAIN='main';
 const S={group:'All',f:{colours:[],seasons:[],dress:'',styles:[],worn:''},closets:new Map(),items:new Map(),outfits:new Map(),plans:new Map(),looks:new Map(),prefs:new Map(),lookFilter:'todo',deleted:new Map(),ready:false,view:'closet',closet:'all',type:'All',q:'',colour:'',style:'',sort:'new',month:new Date(),statsCloset:'all',notice:'',sync:{state:'off',msg:''},
-  shuf:{closet:'all',style:'',season:'auto',occ:'',mode:'mix',pools:{},on:(()=>{try{return{hat:true,outer:true,shoes:true,acc:true,...JSON.parse(localStorage.getItem('closet.shufOn')||'{}')}}catch(e){return{hat:true,outer:true,shoes:true,acc:true}}})(),outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
+  shuf:{closet:'all',style:'',season:'auto',occ:'',mode:(()=>{try{return localStorage.getItem('closet.shufMode')==='one'?'one':'sep'}catch(e){return 'sep'}})(),pools:{},on:(()=>{try{return{hat:true,outer:true,shoes:true,acc:true,...JSON.parse(localStorage.getItem('closet.shufOn')||'{}')}}catch(e){return{hat:true,outer:true,shoes:true,acc:true}}})(),outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 {const v=ls.get('closet.view');if(['closet','outfits','shuffle','calendar','stats'].includes(v))S.view=v;S.closet=ls.get('closet.current')||'all'}
@@ -842,16 +842,9 @@ function doShuffle(){
   const sh=S.shuf,W=wear().items,L=sh.locks,slots={};
   for(const k of L)if(sh.slots[k]&&S.items.has(sh.slots[k]))slots[k]=sh.slots[k];
   const P={top:shufPool('Tops'),bottom:shufPool('Bottoms'),one:shufPool('Full length'),shoes:shufPool('Shoes'),outer:shufPool('Jackets'),hat:shufPool('Head'),acc:shufPool('Accessories')};
-  let mode;
-  if(sh.mode==='sep'&&P.top.length&&P.bottom.length)mode='sep';else if(sh.mode==='one'&&P.one.length)mode='one';
-  else if(slots.one)mode='one';else if(slots.top||slots.bottom)mode='sep';
-  else{
-    // prefer the kind of outfit that actually fits the season and occasion; fall back only if neither does
-    const Q={top:shufPool('Tops',false),bottom:shufPool('Bottoms',false),one:shufPool('Full length',false)};
-    let canSep=Q.top.length&&Q.bottom.length,canOne=Q.one.length;
-    if(canSep||canOne){for(const k of['top','bottom','one'])if(Q[k].length)P[k]=Q[k]}else{canSep=P.top.length&&P.bottom.length;canOne=P.one.length}
-    mode=canSep&&canOne?(Math.random()<.3?'one':'sep'):canOne?'one':canSep?'sep':null}
-  if(!mode){sh.slots={};sh.err='Add some tops and bottoms (or dresses) to this closet to shuffle outfits.';return}
+  // only the kind you picked: top + bottom, or a full-length piece
+  const mode=sh.mode==='one'?(P.one.length?'one':null):(P.top.length&&P.bottom.length?'sep':null);
+  if(!mode){sh.slots={};sh.err=sh.mode==='one'?'No dresses, jumpsuits or rompers in this closet yet. Switch to Top + bottom, or add some.':'Add some tops and bottoms to this closet to shuffle outfits, or switch to Full length.';return}
   sh.err='';
   if(mode==='one'){delete slots.top;delete slots.bottom}else delete slots.one;
   delete slots.hat;L.delete('hat');sh.on.shoes=true;
@@ -888,7 +881,7 @@ function shuffleView(){
   return `<div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
 </div>
-    <div class="chips" role="group" aria-label="Outfit kind">${[['mix','Mix it up'],['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Outfit kind">${[['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
     <div class="chips" role="group" aria-label="Include in the outfit">${OPTIONAL_ROWS.map(([k,l])=>`<button class="chip tgl" type="button" data-shon="${k}" aria-pressed="${!!sh.on[k]}">${sh.on[k]?'✓ ':''}${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
     <div class="srows">${(SHUF_ROWS[sh.cur]||SHUF_ROWS.sep).filter(k=>!['outer','acc'].includes(k)||sh.on[k]).map(row).join('')}</div>
@@ -1113,7 +1106,7 @@ document.addEventListener('click',e=>{
   const sc=e.target.closest('[data-shufcloset]');if(sc){S.shuf.closet=sc.dataset.shufcloset;S.shuf.locks.clear();doShuffle();render();return}
   const stc=e.target.closest('[data-statcloset]');if(stc){S.statsCloset=stc.dataset.statcloset;render();return}
   const so2=e.target.closest('[data-shon]');if(so2){const k=so2.dataset.shon,sh=S.shuf;sh.on[k]=!sh.on[k];try{localStorage.setItem('closet.shufOn',JSON.stringify(sh.on))}catch(_){}doShuffle();render();return}
-  const sm=e.target.closest('[data-shmode]');if(sm){S.shuf.mode=sm.dataset.shmode;S.shuf.locks.clear();doShuffle();render();return}
+  const sm=e.target.closest('[data-shmode]');if(sm){S.shuf.mode=sm.dataset.shmode;try{localStorage.setItem('closet.shufMode',S.shuf.mode)}catch(_){}S.shuf.locks.clear();doShuffle();render();return}
   const so=e.target.closest('[data-shopt]');if(so){const k=so.dataset.shopt;S.shuf[k]=!S.shuf[k];if(!S.shuf[k]){delete S.shuf.slots[k];S.shuf.locks.delete(k)}doShuffle();render();return}
   const lk=e.target.closest('[data-lock]');if(lk){const k=lk.dataset.lock,L=S.shuf.locks;L.has(k)?L.delete(k):L.add(k);lk.setAttribute('aria-pressed',L.has(k));lk.setAttribute('aria-label',(L.has(k)?'Unlock ':'Lock ')+(SLOTNAME[k]||k));return}
   const gr=e.target.closest('[data-group]');if(gr){S.group=gr.dataset.group;S.type='All';refreshCloset();return}
