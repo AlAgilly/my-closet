@@ -2274,7 +2274,7 @@ const cutOf=i=>i?.cut||guessCut(i);
 function cutBalance(a,b){
   const ga=groupOf(a),gb=groupOf(b);if(!((ga==='Tops'&&gb==='Bottoms')||(ga==='Bottoms'&&gb==='Tops')))return 1;
   const x=cutOf(a),y=cutOf(b);
-  if(x==='loose'&&y==='loose')return .35;if((x==='loose'&&y==='fitted')||(x==='fitted'&&y==='loose'))return 2;if(x==='fitted'&&y==='fitted')return .8;return 1;
+  if(x==='loose'&&y==='loose')return .45;if((x==='loose'&&y==='fitted')||(x==='fitted'&&y==='loose'))return 2;if(x==='fitted'&&y==='fitted')return .2;return 1;
 }
 const layerOK=(top,outer)=>!(top&&outer&&cutOf(top)==='loose'&&cutOf(outer)==='fitted');
 // is piece `id` in row `k` fine with what's already in the other rows?
