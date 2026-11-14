@@ -396,7 +396,14 @@ button.barbtn:active{background:var(--accent-soft)}button.barbtn:focus-visible{o
 .syncpill.busy svg path:nth-child(2){animation:syncup 1s ease-in-out infinite}
 @keyframes syncup{0%{transform:translateY(1.5px);opacity:.3}60%{transform:translateY(-1px);opacity:1}100%{transform:translateY(-1px);opacity:1}}
 @media (prefers-reduced-motion:reduce){.syncpill.busy svg path:nth-child(2){animation:none}}
-header.top h1{white-space:nowrap}
+header.top h1{white-space:nowrap;min-width:0;flex:1 1 auto}
+.ctitle{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;max-width:100%;font:inherit;color:inherit}
+.ctitle span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.ctitle svg{flex:none;color:var(--muted);margin-top:4px}
+.ctitle:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.actpair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actpair.one{grid-template-columns:1fr}
+.actpair .bulkbtn{padding:11px 8px;white-space:nowrap}
+.cswitch{justify-content:space-between}.cswitch[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.ccheck{font-weight:700;color:var(--accent);padding:0 8px}
 #sub{white-space:nowrap}
 @media (max-width:360px){.syncpill{padding:0 8px 0 6px;gap:3px}.hright{gap:6px}.subp{display:none}}
 .syncpill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

@@ -587,6 +587,9 @@ function render(){
   if(S.closet!=='all'&&!S.closets.has(S.closet))S.closet='all';
   const its=[...S.items.values()].filter(i=>inCloset(i,S.closet));
   const total=its.reduce((a,i)=>a+(Number(i.price)||0),0);
+  {const h=$('header.top h1'),many=S.closets.size>1,nm=S.closet==='all'?'All closets':closetName(S.closet);
+   h.innerHTML=`<button type="button" id="closetTitle" class="ctitle" aria-haspopup="dialog" aria-label="${esc(nm)}. Switch or edit closets"><span>${esc(nm)}</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`;
+   document.title=nm==='My Closet'?'My Closet':nm+' · My Closet'}
   $('#sub').innerHTML=`${its.length} piece${its.length===1?'':'s'}${total?`<span class="subp"> · ${esc(money(total))}</span>`:''}`;
   let notice=S.notice?`<div class="notice" role="status">${esc(S.notice)}</div>`:'';
   if(!notice&&S.ready&&!GH.cfg()&&S.items.size)notice=`<div class="notice">Your closet is only saved on this device. <button type="button" data-open-sync>Back it up to GitHub</button></div>`;
@@ -604,8 +607,10 @@ function closetChips(cur,attr,extra=''){
 }
 function closetView(){
   if(!S.ready)return '';
-  const top=closetChips(S.closet,'data-closet',`<button class="chip ghost" type="button" id="manageClosets">${S.closets.size>1?'Edit closets':'+ Add a closet'}</button>`)
-    +`<button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Upload items</button>`+(ls.get('closet.sorted3')||![...S.items.values()].some(i=>['Blouses','Sweaters','Hoodies'].includes(i.type))?'':`<button class="bulkbtn" type="button" id="sortBtn">Sort tops into Long sleeves, Short sleeves &amp; Crewnecks</button>`)+(()=>{const n=[...S.items.values()].filter(i=>!isTagged(i)).length;return n?`<button class="bulkbtn" type="button" id="qtBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Quick tag seasons &amp; dressiness · ${n} to go</button>`:''})();
+  const untagged=[...S.items.values()].filter(i=>inCloset(i,S.closet)&&!isTagged(i)).length;
+  const top=`<div class="actpair${untagged?'':' one'}"><button class="bulkbtn" type="button" id="bulkBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="2"/><path d="M7 4h12a2 2 0 0 1 2 2v11M8 16l3-3 2 2 2-2"/></svg>Upload items</button>`
+    +(untagged?`<button class="bulkbtn" type="button" id="qtBtn" aria-label="Organize: ${untagged} piece${untagged===1?'':'s'} need seasons and dressiness"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>Organize ${untagged}</button>`:'')+`</div>`
+    +(ls.get('closet.sorted3')||![...S.items.values()].some(i=>['Blouses','Sweaters','Hoodies'].includes(i.type))?'':`<button class="bulkbtn" type="button" id="sortBtn">Sort tops into Long sleeves, Short sleeves &amp; Crewnecks</button>`);
   const all=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet));
   if(!all.length)return top+empty(S.items.size?`${esc(closetName(S.closet))} is empty`:'Your closet is empty','Add your first piece with a photo, price, type, colour and style. Tap “+ Add piece” below.');
   return top+`
@@ -1074,6 +1079,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#sheetRoot'))return;
   if(e.target.closest('#syncBtn,[data-open-sync]')){syncSheet();return}
   if(e.target.closest('#manageClosets')){closetsSheet();return}
+  if(e.target.closest('#closetTitle')){closetSwitcher();return}
   if(e.target.closest('#bulkBtn')){bulkSheet();return}
   if(e.target.closest('#qtBtn')){quickTagSheet();return}
   if(e.target.closest('#sortBtn')){sortSheet();return}
@@ -1383,6 +1389,18 @@ function itemSheet(id){
   }
 }
 
+// switch closets from the title; "Edit closets" opens the editor
+function closetSwitcher(){
+  const counts={};for(const it of S.items.values()){const c=closetOf(it);counts[c]=(counts[c]||0)+1}
+  const list=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
+  const row=(id,name,n)=>`<button type="button" class="li cswitch" data-cs="${id}" aria-pressed="${S.closet===id}"><span class="tx"><b>${esc(name)}</b><small>${n} piece${n===1?'':'s'}</small></span>${S.closet===id?'<span class="ccheck" aria-hidden="true">✓</span>':''}</button>`;
+  const sh=openSheet(`${head('Your closets')}<div class="list">${list.length>1?row('all','All closets',S.items.size):''}${list.map(([id,c])=>row(id,c.name,counts[id]||0)).join('')}</div>
+    <div class="btns"><button class="btn" type="button" id="csEdit">${list.length>1?'Edit closets':'+ Add a closet'}</button></div>`);
+  sh.addEventListener('click',e=>{
+    const b=e.target.closest('[data-cs]');if(b){S.closet=b.dataset.cs;S.type='All';S.group='All';ls.set('closet.current',S.closet);closeSheet();if(S.view!=='closet'){S.view='closet';ls.set('closet.view','closet')}render();scrollTo(0,0);return}
+    if(e.target.closest('#csEdit')){closeSheet();closetsSheet()}
+  });
+}
 function closetsSheet(){
   const counts={};for(const it of S.items.values()){const c=closetOf(it);counts[c]=(counts[c]||0)+1}
   const list=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
@@ -2020,8 +2038,8 @@ async function savePairLinks(id,goes){
 }
 // --- Quick tag: seasons and dressiness for every piece, one at a time, with a guess filled in ---
 function quickTagSheet(){
-  const queue=[...S.items.entries()].filter(([,i])=>!isTagged(i)).sort((a,b)=>typeRank(typeOf(a[1]))-typeRank(typeOf(b[1])));let n=0,done=0;
-  const sh=openSheet(`${head('Quick tag')}<div id="qt" class="dc"></div>`);const box=sh.querySelector('#qt');
+  const queue=[...S.items.entries()].filter(([,i])=>inCloset(i,S.closet)&&!isTagged(i)).sort((a,b)=>typeRank(typeOf(a[1]))-typeRank(typeOf(b[1])));let n=0,done=0;
+  const sh=openSheet(`${head('Organize')}<div id="qt" class="dc"></div>`);const box=sh.querySelector('#qt');
   const show=()=>{
     while(n<queue.length&&(!S.items.has(queue[n][0])||isTagged(S.items.get(queue[n][0]))))n++;
     if(n>=queue.length){box.innerHTML=`<div class="empty" style="padding:24px 8px"><h2>All tagged</h2><p>${done?`You tagged ${done} piece${done===1?'':'s'}. `:''}Shuffle now picks for the season and the occasion.</p></div><div class="btns"><button class="btn primary" type="button" data-qtclose>Done</button></div>`;return}
