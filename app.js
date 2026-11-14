@@ -647,7 +647,7 @@ function fPass(id,i,f=S.f,W=wear().items){
   if(f.colours.length&&!itemColours(i).some(c=>f.colours.includes(c)))return false;
   if(f.seasons.length&&!f.seasons.some(s=>fitsSeason(i,s)))return false;
   if(f.dress){const r=DRESS_FILTERS.find(x=>x[0]===f.dress),d=dressOf(i);if(r&&(d<r[2]||d>r[3]))return false}
-  if(f.styles.length&&!f.styles.includes((i.style||'').trim().toLowerCase()))return false;
+  if(f.styles.length&&!f.styles.includes(styleOf(i)))return false;
   if(f.worn){const l=last(W[id]);
     if(f.worn==='never'&&l)return false;if(f.worn==='stale'&&l&&daysAgo(l)<90)return false;if(f.worn==='recent'&&!(l&&daysAgo(l)<=31))return false;if(f.worn==='leaving'&&!i.fate)return false}
   return true;
@@ -663,7 +663,7 @@ function fsBarHTML(){
 function filterSheet(){
   const all=closetItems(),f=JSON.parse(JSON.stringify(S.f));let sort=S.sort||'new';
   const order=GENERIC.map(g=>g[0]),colours=[...new Set(all.flatMap(([,i])=>itemColours(i)))].sort((a,b)=>((order.indexOf(a)+1)||99)-((order.indexOf(b)+1)||99)||a.localeCompare(b));
-  const styles=[...new Set(all.map(([,i])=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
+  const styles=DRESS_WORDS.filter(w=>w&&all.some(([,i])=>styleOf(i)===w));
   const chip=(k,v,l,on,sw)=>`<button class="chip" type="button" data-fk="${k}" data-fv="${esc(v)}" aria-pressed="${on}">${sw?`<span class="sw" style="background:${sw}"></span>`:''}${esc(l)}</button>`;
   const sh=openSheet(`${head('Filter &amp; sort')}
     <div class="field"><span class="lbl">Sort by</span><div class="chips wrap">${SORTS.map(([k,l])=>`<button class="chip" type="button" data-sort="${k}" aria-pressed="${sort===k}">${l}</button>`).join('')}</div></div>
@@ -757,7 +757,7 @@ function itemCard(id,i,W){
 }
 function closetResults(){
   const W=wear().items,q=S.q.toLowerCase();
-  let list=[...S.items.entries()].filter(([id,i])=>inCloset(i,S.closet)&&(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeOf(i)===S.type)&&fPass(id,i,S.f,W)&&(!q||[i.name,...itemColours(i),i.style,typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
+  let list=[...S.items.entries()].filter(([id,i])=>inCloset(i,S.closet)&&(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeOf(i)===S.type)&&fPass(id,i,S.f,W)&&(!q||[i.name,...itemColours(i),styleOf(i),typeOf(i),groupOf(i)].join(' ').toLowerCase().includes(q)));
   const sorters={
     new:(a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0),
     priceHi:(a,b)=>(Number(b[1].price)||0)-(Number(a[1].price)||0),
@@ -866,7 +866,6 @@ function shuffleView(){
   if(!S.ready)return '';
   const sh=S.shuf;if(sh.closet!=='all'&&!S.closets.has(sh.closet))sh.closet='all';
   if(!sh.cur&&!sh.err)doShuffle();
-  const styles=[...new Set([...S.items.values()].filter(i=>inCloset(i,sh.closet)).map(i=>(i.style||'').trim().toLowerCase()).filter(Boolean))].sort();
   const withs=Object.entries(sh.slots).filter(([k])=>k.startsWith('with')).map(([,id])=>S.items.get(id)).filter(Boolean);
   const row=k=>{const ids=(sh.pools[k]||[]).filter(id=>S.items.has(id)),on=sh.slots[k],loop=ids.length>1,copies=loop?3:1;
     const card=(id,c)=>{const i=S.items.get(id);return `<div class="scard${id===on&&c===(loop?1:0)?' on':''}" data-cid="${id}" data-copy="${c}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></div>`};
@@ -876,7 +875,7 @@ function shuffleView(){
   return `${closetChips(sh.closet,'data-shufcloset')}
     <div class="row"><select id="shOcc" aria-label="Occasion">${OCCASIONS.map(([k,l])=>`<option value="${k}" ${sh.occ===k?'selected':''}>${l}</option>`).join('')}</select>
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
-      <select id="shStyle" aria-label="Style"><option value="">Any style</option>${styles.map(s=>`<option ${sh.style===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
+</div>
     <div class="chips" role="group" aria-label="Outfit kind">${[['mix','Mix it up'],['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
     <div class="chips" role="group" aria-label="Include in the outfit">${OPTIONAL_ROWS.map(([k,l])=>`<button class="chip tgl" type="button" data-shon="${k}" aria-pressed="${!!sh.on[k]}">${sh.on[k]?'✓ ':''}${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
@@ -1246,7 +1245,6 @@ async function touchUp(sh,st,done){
 function itemSheet(id){
   const it=id?S.items.get(id):null;if(id&&!it)return;
   const r=id?wear().items[id]:null,l=last(r),wears=r?.worn.length||0,price=Number(it?.price);
-  const styles=[...new Set([...S.items.values()].map(i=>(i.style||'').trim()).filter(Boolean))];
   const inOutfits=id?[...S.outfits.values()].filter(o=>(o.itemIds||[]).includes(id)).length:0;
   const defCloset=it?closetOf(it):(S.closet!=='all'&&S.closets.has(S.closet)?S.closet:MAIN);
   const closets=[...S.closets.entries()].sort((a,b)=>(a[1].createdAt||0)-(b[1].createdAt||0));
@@ -1284,8 +1282,6 @@ function itemSheet(id){
       <div class="swatches" role="group" aria-label="Secondary colours">${GENERIC.map(([n,h])=>`<button type="button" data-sec="${n}" style="background:${h}" aria-label="${n}" title="${n}"></button>`).join('')}</div>
       <p class="muted" id="secNames" style="margin:0;font-size:13px"></p>
     </div>
-    <div class="field"><label for="fSty">Style</label><input id="fSty" list="styleList" value="${esc(it?.style)}" placeholder="casual, work, going out…" autocomplete="off">
-      <datalist id="styleList">${[...new Set([...styles,'casual','work','going out','athletic','formal','lounge','vintage'])].map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
     ${tagsHTML(it)}
     ${pairsHTML(id)}
     <div class="btns"><button class="btn primary" type="button" id="save">${it?'Save changes':'Add to closet'}</button>
@@ -1364,7 +1360,7 @@ function itemSheet(id){
     let type=tSel.value,group=GROUP_OF[type]||it?.group||'Other';
     if(type==='__new'){type=sh.querySelector('#fNewType').value.trim();group=sh.querySelector('#fGroup').value;if(!type){sh.querySelector('#fNewType').focus();toast('Name the new type.');return}}
     const pv=sh.querySelector('#fPrice').value;
-    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:COL.name,colourHex:COL.hex||null,colourNamed:COL.named&&!!COL.name,colours2:[...COL.sec].filter(n=>n!==COL.name),style:sh.querySelector('#fSty').value.trim(),createdAt:it?.createdAt||Date.now()};
+    const data={name,price:pv===''?null:Math.round(Number(pv)*100)/100,type,group,closetId:sh.querySelector('#fCloset')?.value||defCloset,colour:COL.name,colourHex:COL.hex||null,colourNamed:COL.named&&!!COL.name,colours2:[...COL.sec].filter(n=>n!==COL.name),style:TAG.dress!=null?dressWord(TAG.dress):(it?.dress!=null?dressWord(it.dress):''),createdAt:it?.createdAt||Date.now()};
     const drop=[];
     for(const[k,idKey,cutKey]of[['front','imageId','cutout'],['back','backImageId','backCutout']]){
       const st=P[k],oldId=it?.[idKey]||null;
@@ -1425,7 +1421,7 @@ function pickerHTML(sel){
   if(!S.items.size)return `<p class="muted" style="margin:0">Add pieces to your closet first.</p>`;
   const items=[...S.items.entries()].sort((a,b)=>typeRank(typeOf(a[1]))-typeRank(typeOf(b[1]))||(a[1].name||'').localeCompare(b[1].name||''));
   const multi=S.closets.size>1;
-  return `<input class="search" type="search" id="pkQ" placeholder="Search pieces" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Find a piece"><div class="picker" id="picker">${items.map(([id,i])=>`<button type="button" class="pk" data-pk="${id}" data-txt="${esc([i.name,i.colour,i.style,typeOf(i),groupOf(i),multi?closetName(closetOf(i)):''].join(' ').toLowerCase())}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`).join('')}</div>`;
+  return `<input class="search" type="search" id="pkQ" placeholder="Search pieces" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Find a piece"><div class="picker" id="picker">${items.map(([id,i])=>`<button type="button" class="pk" data-pk="${id}" data-txt="${esc([i.name,i.colour,styleOf(i),typeOf(i),groupOf(i),multi?closetName(closetOf(i)):''].join(' ').toLowerCase())}" aria-pressed="${sel.has(id)}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`).join('')}</div>`;
 }
 function wirePicker(sh,sel,onChange){
   sh.querySelectorAll('[data-pk]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.pk;sel.has(id)?sel.delete(id):sel.add(id);b.setAttribute('aria-pressed',sel.has(id));onChange&&onChange()}));
@@ -1937,6 +1933,8 @@ const SEASONS=[['winter','Winter','<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.
 const seasonIcon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${(SEASONS.find(s=>s[0]===k)||[])[2]||''}</svg>`;
 const DRESS_WORDS=['','Working on the car','Lounging at home','Gym & errands','Casual hangout','Everyday / class','Smart casual','Office / dinner out','Date night / party','Wedding guest','Black-tie'];
 const dressWord=v=>v?DRESS_WORDS[v]:'Not rated';
+// a piece's style is what its dressiness slider says
+const styleOf=i=>i&&i.dress!=null?DRESS_WORDS[i.dress]:'';
 // fill the track exactly up to the centre of the 26px thumb
 const dressFill=(r,v)=>{const p=(v-1)/9*100;r.style.setProperty('--fill',v?`calc(${p}% + ${(.5-p/100)*26}px)`:'0%')};
 const isTagged=i=>i.seasons!==undefined||i.dress!=null;
