@@ -1683,7 +1683,7 @@ function looksView(){
   const chip=(k,l,n)=>`<button class="chip" type="button" data-lookf="${k}" aria-pressed="${f===k}">${l} <small>${n}</small></button>`;
   return add+`<div class="chips" role="group" aria-label="Show">${chip('todo','To check',todo.length)}${chip('done','Logged',done.length)}${skipped.length?chip('skipped','Skipped',skipped.length):''}${chip('all','All',all.length)}</div>
     ${f==='todo'&&todo.length?`<p class="muted" style="margin:0;font-size:13px">Tap a photo, check the pieces you’re wearing, and it’s added to that day on the calendar.</p>`:''}
-    ${list.length?`<div class="lgrid">${list.map(([id,l])=>`<button type="button" class="look" data-look="${id}" aria-label="Look from ${fmtDate(l.date)}"><div class="ph">${img(l.imageId)}${l.status===LOOK_DONE?'<span class="lbadge" aria-hidden="true">✓</span>':''}</div><small>${fmtDate(l.date)}${l.status===LOOK_DONE&&l.itemIds?.length?` · ${l.itemIds.length} piece${l.itemIds.length===1?'':'s'}`:''}</small></button>`).join('')}</div>`
+    ${list.length?`<div class="lgrid">${list.map(([id,l])=>`<button type="button" class="look" data-look="${id}" aria-label="Look from ${fmtDate(l.date)}"><div class="ph" style="position:relative">${img(l.imageId)}${lookOv(l,true)}${l.status===LOOK_DONE?'<span class="lbadge" aria-hidden="true">✓</span>':''}</div><small>${fmtDate(l.date)}${l.status===LOOK_DONE&&l.itemIds?.length?` · ${l.itemIds.length} piece${l.itemIds.length===1?'':'s'}`:''}</small></button>`).join('')}</div>`
       :`<p class="muted">${f==='todo'?'All caught up. Every photo has been checked.':'Nothing here yet.'}</p>`}`;
 }
 async function embStore(key,make){
@@ -1817,6 +1817,13 @@ async function unlogLook(l){
   else await delDoc('plans',l.date);
 }
 const learnedCount=()=>[...S.looks.values()].filter(l=>l.status===LOOK_DONE&&l.learn).length;
+/* the outfit as a small card in the bottom-right corner of a logged look's photo (inline styles so it never falls out of place) */
+function lookOv(l,small){
+  if(!l||l.status!==LOOK_DONE)return'';const ids=(l.itemIds||[]).filter(i=>S.items.has(i));if(!ids.length)return'';
+  const o=l.outfitId&&S.outfits.get(l.outfitId);
+  const pos=small?'right:4px;bottom:4px;width:38%;border-radius:7px':'right:8px;bottom:8px;width:30%;min-width:84px;max-width:150px;border-radius:12px';
+  return `<span class="lkov${small?' sm':''}" aria-hidden="true" style="position:absolute;${pos};z-index:2;pointer-events:none;overflow:hidden;line-height:normal;box-shadow:0 2px 8px rgba(0,0,0,.28)">${boardHTML(ids,o?.layout)}</span>`;
+}
 /* a logged look: the photo with its outfit in the corner, the pieces, Edit and Delete */
 function lookSheet(lid){
   const l=S.looks.get(lid);if(!l)return;
@@ -1824,7 +1831,7 @@ function lookSheet(lid){
   const ids=(l.itemIds||[]).filter(i=>S.items.has(i)),o=l.outfitId&&S.outfits.get(l.outfitId);
   const tile=id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-vitem="${id}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`};
   const sh=openSheet(`${head(fmtDate(l.date))}
-    <div class="lookph"><span class="lookov">${img(l.imageId)}${ids.length?boardHTML(ids,o?.layout,'mini'):''}</span></div>
+    <div class="lookph"><span class="lookov" style="position:relative;display:inline-block;max-width:100%;line-height:0">${img(l.imageId)}${lookOv(l)}</span></div>
     ${o?`<button type="button" class="ivnote lookout" data-voutfit="${l.outfitId}"><span>Outfit: <b>${esc(o.name||'Outfit')}</b></span></button>`:''}
     <div class="lbl">Pieces · ${ids.length}</div>
     ${ids.length?`<div class="hscroll">${ids.map(tile).join('')}</div>`:`<p class="muted" style="margin:0;font-size:13px">No pieces logged.</p>`}
@@ -2187,7 +2194,7 @@ function outfitView(id){
     <div class="lbl">Pieces</div>
     <div class="hscroll">${items.map(i=>{const it=S.items.get(i);return `<button type="button" class="gk" data-vitem="${i}"><div class="${phCls(it)}">${thumb(it)}</div><small>${esc(it.name)}</small></button>`}).join('')}</div>
     <div class="lbl">Worn in ${lks.length} look${lks.length===1?'':'s'}</div>
-    ${lks.length?`<div class="lgrid">${lks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph">${img(x.imageId)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
+    ${lks.length?`<div class="lgrid">${lks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph" style="position:relative">${img(x.imageId)}${lookOv(x,true)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
       :`<p class="muted" style="margin:0;font-size:13px">No logged looks with this outfit yet. Log photos of you in the Looks tab and they’ll show up here.</p>`}
     <div class="btns"><button class="btn primary" type="button" id="oEdit">Edit</button><button class="btn" type="button" id="oWear">Wore it today</button></div>`);
   sh.addEventListener('click',e=>{
@@ -2351,7 +2358,7 @@ function itemView(id){
     ${outfits.length?`<div class="ivgrid">${outfits.map(([oid,o])=>`<button class="card" type="button" data-voutfit="${oid}">${boardHTML(o.itemIds||[],o.layout)}<div class="nm">${esc(o.name||'Outfit')}</div></button>`).join('')}</div>`
       :`<p class="muted" style="margin:0;font-size:13px">Not in a saved outfit yet.</p>`}
     <div class="lbl">Worn in ${looks.length} look${looks.length===1?'':'s'}</div>
-    ${looks.length?`<div class="lgrid">${looks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph">${img(x.imageId)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
+    ${looks.length?`<div class="lgrid">${looks.map(([lid,x])=>`<button type="button" class="look" data-vlook="${lid}" aria-label="Look from ${fmtDate(x.date)}"><div class="ph" style="position:relative">${img(x.imageId)}${lookOv(x,true)}</div><small>${fmtDate(x.date)}</small></button>`).join('')}</div>`
       :`<p class="muted" style="margin:0;font-size:13px">No logged looks with this piece yet.</p>`}
     <div class="btns"><button class="btn primary" type="button" id="iEdit">Edit</button><button class="btn" type="button" id="iWear">Wore it today</button><button class="btn" type="button" id="iMaybe">${it.maybeAt?'Take out of maybe bag':'Maybe bag'}</button></div>`);
   sh.addEventListener('click',e=>{
