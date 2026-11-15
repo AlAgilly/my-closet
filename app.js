@@ -810,7 +810,7 @@ const OCCASIONS=[['','Any occasion',1,10],['casual','Casual',1,4],['everyday','E
 const shufSeason=()=>S.shuf.season==='auto'?currentSeason():S.shuf.season||'';
 function shufPool(group,loose){
   const sh=S.shuf,st=sh.style,sea=shufSeason(),oc=OCCASIONS.find(o=>o[0]===sh.occ)||OCCASIONS[0];
-  const inPool=i=>{const t=typeOf(i);return group==='Shoes'?SHOE_T.includes(t):group==='Head'?HEAD_T.includes(t):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(t)&&!UNDER_T.includes(t):groupOf(i)===group};
+  const inPool=i=>{const t=typeOf(i);if(t==='Hoodies')return group==='Jackets';return group==='Shoes'?SHOE_T.includes(t):group==='Head'?HEAD_T.includes(t):group==='Accessories'?groupOf(i)==='Accessories'&&!SHOE_T.includes(t)&&!UNDER_T.includes(t):groupOf(i)===group};
   const base=[...S.items.entries()].filter(([,i])=>inCloset(i,sh.closet)&&inPool(i)&&(!st||(i.style||'').trim().toLowerCase()===st)&&!i.fate&&!i.maybeAt);
   const fit=base.filter(([,i])=>fitsSeason(i,sea)&&dressOf(i)>=oc[2]&&dressOf(i)<=oc[3]);
   // if nothing fits the season/occasion for this slot, fall back rather than leave it empty
@@ -867,7 +867,7 @@ const slotName=k=>SLOTNAME[k]||(k.startsWith('with')?'Worn with':k);
 const SLOTNAME={top:'Top',bottom:'Bottom',one:'Full length',shoes:'Shoes',outer:'Jacket',hat:'Hat & hair',bag:'Bag',acc:'Accessory'};
 // top to bottom: jacket, top, bottom, shoes, then accessories (hats, hair, bags, jewelry…)
 const SHUF_ROWS={sep:['outer','top','bottom','shoes','acc'],one:['outer','one','shoes','acc']};
-const ROW_EMPTY={top:'No tops here yet',bottom:'No bottoms here yet',one:'No full-length pieces here yet',outer:'No jackets here yet',hat:'No hats or hair accessories yet',acc:'No accessories here yet',shoes:'No shoes here yet'};
+const ROW_EMPTY={top:'No tops here yet',bottom:'No bottoms here yet',one:'No full-length pieces here yet',outer:'No jackets or hoodies here yet',hat:'No hats or hair accessories yet',acc:'No accessories here yet',shoes:'No shoes here yet'};
 const OPTIONAL_ROWS=[['outer','Jacket'],['acc','Accessory']];
 const LOCK_SVG='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function shuffleView(){
@@ -909,9 +909,9 @@ function settleCar(car){
 function fixLayers(k){
   const o=k==='top'?'outer':k==='outer'?'top':null,sl=S.shuf.slots;if(!o||!sl[o]||slotOK(o,sl[o],sl))return;
   const top=S.items.get(k==='top'?sl.top:sl.outer);
-  if(S.shuf.locks.has(o)){toast(k==='top'?`${top?.name||'This top'} is loose, and the locked jacket is fitted`:`This jacket is fitted, and the locked top is loose`);return}
+  if(S.shuf.locks.has(o)){toast(k==='top'?`${top?.name||'This top'} doesn’t go under the locked layer`:`This layer doesn’t go over the locked top`);return}
   const cand=(S.shuf.pools[o]||[]).filter(x=>S.items.has(x)&&slotOK(o,x,sl));
-  if(!cand.length){toast(k==='top'?'No jacket in this closet fits over that top':'No top here fits under that jacket');return}
+  if(!cand.length){toast(k==='top'?'No jacket or hoodie here goes over that top':'No top here goes under that layer');return}
   const W=wear().items,pick=weightedPick(cand.map(x=>[x,S.items.get(x)]),W,Object.values(sl).filter(x=>x!==sl[o]),{cw:coWear(),t:taste()});
   sl[o]=pick;const car=document.querySelector(`[data-car="${o}"]`);if(car)centreCar(car,true);
 }
@@ -1899,7 +1899,7 @@ function lookEditSheet(lid){
     const rej=(g0?.pick||[]).filter(id=>!sel.has(id));
     await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej});
     const wasDone=l.status===LOOK_DONE;closeSheet();if(wasDone)lookSheet(lid);toast(`Logged on ${fmtDate(date)}`);
-    try{const made=await autoOutfits();if(made.length)toast(`You’ve worn this more than once, so it’s saved as an outfit: ${S.outfits.get(made[0])?.name||''}`)}catch(e){console.warn('auto outfits',e)}
+    try{const made=await autoOutfits();if(made.length)toast(`Saved as an outfit: ${S.outfits.get(made[0])?.name||''}`)}catch(e){console.warn('auto outfits',e)}
   }));
   const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
     const cur=S.looks.get(lid);await unlogLook(cur);await saveDoc('looks',lid,{...cur,status:LOOK_SKIP,itemIds:[],outfitId:null});closeSheet();toast('Skipped')}));
@@ -2206,23 +2206,24 @@ function outfitView(id){
     await saveDoc('plans',t,{note:'',...(p||{}),itemIds:[...new Set([...(p?.itemIds||[]),...items])],outfitId:id});closeSheet();toast('Logged for today')}));
 }
 /* ---------- outfits you keep wearing are saved for you ----------
-   Two or more logged looks with exactly the same pieces become a saved outfit, and those looks (and their days) are linked to it. */
+   A logged look with a top and a bottom (or a full-length piece) becomes a saved outfit, and looks with the same pieces, shoes aside, are linked to it. */
 function autoOutfitName(ids){
   const it=ids.map(i=>S.items.get(i)).filter(Boolean),order=['Full length','Tops','Bottoms','Jackets'];
   const main=it.filter(i=>order.includes(groupOf(i))).sort((a,b)=>order.indexOf(groupOf(a))-order.indexOf(groupOf(b))).slice(0,2);
   const n=(main.length?main:it.slice(0,2)).map(i=>i.name||'Piece');
   return n.length>1?`${n[0]} & ${n[1].charAt(0).toLowerCase()+n[1].slice(1)}`:n[0]||'Outfit';
 }
-// the pieces that make an outfit what it is (top + bottom, or a full-length piece); shoes, jackets and bags can vary
-const coreKey=ids=>ids.filter(i=>['Tops','Bottoms','Full length'].includes(groupOf(S.items.get(i)))).sort().join('|');
-// a saved outfit that is this look: same pieces, or the same core with one set inside the other (a photo that misses the shoes)
+// shoes don't make an outfit different: the same pieces with or without shoes are the same outfit
+const isShoe=i=>SHOE_T.includes(typeOf(i))||groupOf(i)==='Footwear';
+const noShoeKey=ids=>[...new Set(ids)].filter(i=>S.items.has(i)&&!isShoe(S.items.get(i))).sort().join('|');
+// a look is an outfit when it has a top and a bottom (or a full-length piece)
+const isOutfitLook=ids=>{const g=new Set(ids.map(i=>groupOf(S.items.get(i))));return(g.has('Tops')&&g.has('Bottoms'))||g.has('Full length')};
+// the saved outfit that is this look: the same pieces, shoes aside
 function outfitForLook(ids){
   const exact=matchOutfit(ids);if(exact)return exact;
-  const ck=coreKey(ids);if(!ck)return null;let best=null,bo=0;
-  for(const[oid,o]of S.outfits){const oi=(o.itemIds||[]).filter(i=>S.items.has(i));if(coreKey(oi)!==ck)continue;
-    const inO=ids.every(i=>oi.includes(i)),inL=oi.every(i=>ids.includes(i));if(!inO&&!inL)continue;
-    const ov=ids.filter(i=>oi.includes(i)).length;if(ov>bo){bo=ov;best=oid}}
-  return best;
+  const k=noShoeKey(ids);if(!k)return null;
+  for(const[oid,o]of S.outfits)if(noShoeKey(o.itemIds||[])===k)return oid;
+  return null;
 }
 let autoBusy=false;
 async function autoOutfits(){
@@ -2230,18 +2231,22 @@ async function autoOutfits(){
   try{
     const link=async(lid,oid)=>{const l=S.looks.get(lid);if(!l||l.outfitId)return;await saveDoc('looks',lid,{...l,outfitId:oid});
       const p=S.plans.get(l.date);if(p&&!p.outfitId)await saveDoc('plans',l.date,{...p,outfitId:oid})};
-    // looks you already tied to an outfit are left alone; others that match a saved outfit get linked to it
+    // an auto-saved outfit without shoes picks them up from a look that has them
+    const addShoes=async(oid,ids)=>{const o=S.outfits.get(oid);if(!o?.auto)return;const oi=(o.itemIds||[]).filter(i=>S.items.has(i));
+      if(oi.some(i=>isShoe(S.items.get(i))))return;const sh=ids.filter(i=>isShoe(S.items.get(i)));if(!sh.length)return;
+      const ni=[...oi,...sh];await saveDoc('outfits',oid,{...o,itemIds:ni,layout:autoLayout(ni,o.layout||{})})};
+    // every logged look with a top and a bottom is an outfit: linked to the saved one it matches, or saved as a new one
     const groups={};
-    for(const[lid,l]of S.looks){if(l.status!==LOOK_DONE||l.outfitId)continue;const ids=[...new Set((l.itemIds||[]).filter(i=>S.items.has(i)))];if(ids.length<2)continue;
-      const oid=outfitForLook(ids);if(oid){await link(lid,oid);continue}
-      (groups[ids.sort().join('|')]??=[]).push(lid)}
-    // a new outfit only when the same pieces were worn on two or more different days (several photos from one day count once)
+    for(const[lid,l]of S.looks){if(l.status!==LOOK_DONE||l.outfitId)continue;const ids=[...new Set((l.itemIds||[]).filter(i=>S.items.has(i)))];
+      if(!isOutfitLook(ids))continue;
+      const oid=outfitForLook(ids);if(oid){await addShoes(oid,ids);await link(lid,oid);continue}
+      (groups[noShoeKey(ids)]??=[]).push([lid,ids])}
     const made=[];
-    for(const[k,lids]of Object.entries(groups)){
-      const days=new Set(lids.map(lid=>S.looks.get(lid)?.date).filter(Boolean));if(days.size<2)continue;
-      const ids=k.split('|');let oid=outfitForLook(ids);
+    for(const lst of Object.values(groups)){
+      // the version with the most pieces (usually the one with shoes) becomes the outfit
+      const ids=lst.map(x=>x[1]).sort((a,b)=>b.length-a.length)[0];let oid=outfitForLook(ids);
       if(!oid){oid=newId();await saveDoc('outfits',oid,{name:autoOutfitName(ids),itemIds:ids,layout:autoLayout(ids),auto:true,createdAt:Date.now()});made.push(oid)}
-      for(const lid of lids)await link(lid,oid);
+      for(const[lid,li]of lst){await addShoes(oid,li);await link(lid,oid)}
     }
     return made;
   }finally{autoBusy=false}
@@ -2310,12 +2315,14 @@ function cutBalance(a,b){
   const x=cutOf(a),y=cutOf(b);
   if(x==='loose'&&y==='loose')return .45;if((x==='loose'&&y==='fitted')||(x==='fitted'&&y==='loose'))return 2;if(x==='fitted'&&y==='fitted')return .2;return 1;
 }
+// in Shuffle a hoodie is a layer, but never over a sweater
+const hoodieOver=(top,outer)=>!!(top&&outer&&typeOf(outer)==='Hoodies'&&typeOf(top)==='Sweaters');
 const layerOK=(top,outer)=>!(top&&outer&&cutOf(top)==='loose'&&cutOf(outer)==='fitted');
 // is piece `id` in row `k` fine with what's already in the other rows?
 function slotOK(k,id,slots){
   const it=S.items.get(id);
-  if(k==='outer'){const t=S.items.get(slots.top);return layerOK(t,it)}
-  if(k==='top'){const o=S.items.get(slots.outer);return layerOK(it,o)}
+  if(k==='outer'){const t=S.items.get(slots.top);return layerOK(t,it)&&!hoodieOver(t,it)}
+  if(k==='top'){const o=S.items.get(slots.outer);return layerOK(it,o)&&!hoodieOver(it,o)}
   return true;
 }
 function cutHTML(i,show){
