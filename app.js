@@ -57,7 +57,7 @@ const S={group:'All',f:{colours:[],seasons:[],dress:'',styles:[],worn:''},closet
   shuf:{closet:'all',style:'',season:'auto',occ:'',mode:(()=>{try{return localStorage.getItem('closet.shufMode')==='one'?'one':'sep'}catch(e){return 'sep'}})(),pools:{},on:(()=>{try{return{hat:true,outer:true,shoes:true,acc:true,...JSON.parse(localStorage.getItem('closet.shufOn')||'{}')}}catch(e){return{hat:true,outer:true,shoes:true,acc:true}}})(),outer:false,bag:false,acc:false,slots:{},locks:new Set()}};
 const URLS=new Map(); // imageId -> object URL
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
-{const v=ls.get('closet.view');if(['closet','outfits','shuffle','calendar','stats'].includes(v))S.view=v;S.closet=ls.get('closet.current')||'all'}
+{const v=ls.get('closet.view');S.calTab=ls.get('closet.calTab')==='looks'?'looks':'cal';if(v==='looks'){S.view='calendar';S.calTab='looks'}else if(['closet','outfits','shuffle','calendar','stats'].includes(v))S.view=v;S.closet=ls.get('closet.current')||'all'}
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -589,7 +589,7 @@ const boardTools=`<div class="btools" hidden><button type="button" data-bt="smal
 /* ---------- views ---------- */
 function render(){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.dataset.tab===S.view?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
-  const fab={closet:'+ Add piece',outfits:'+ New outfit',calendar:'+ Plan a day'}[S.view];
+  const fab={closet:'+ Add piece',outfits:'+ New outfit',calendar:S.calTab==='looks'?'':'+ Plan a day'}[S.view];
   $('#fab').textContent=fab||'';$('#fab').hidden=!S.ready||!fab;
   if(S.closet!=='all'&&!S.closets.has(S.closet))S.closet='all';
   const its=[...S.items.values()].filter(i=>inCloset(i,S.closet));
@@ -601,7 +601,7 @@ function render(){
   let notice=S.notice?`<div class="notice" role="status">${esc(S.notice)}</div>`:'';
   if(!notice&&S.ready&&!GH.cfg()&&S.items.size)notice=`<div class="notice">Your closet is only saved on this device. <button type="button" data-open-sync>Back it up to GitHub</button></div>`;
   const y=window.scrollY;
-  $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,looks:looksView,shuffle:shuffleView,calendar:calendarView,stats:statsView}[S.view]||closetView)();
+  $('#view').innerHTML=notice+({closet:closetView,outfits:outfitsView,looks:looksView,shuffle:shuffleView,calendar:wornView,stats:statsView}[S.view]||closetView)();
   if(S.view==='shuffle')wireShuffle();
   const cats=$('.cats'),selCat=cats?.querySelector('[aria-pressed="true"]');
   if(cats&&selCat&&S.group!=='All')cats.scrollLeft=Math.max(0,selCat.offsetLeft-cats.clientWidth/2+selCat.offsetWidth/2);
@@ -680,16 +680,15 @@ function filterSheet(){
     <div class="field"><span class="lbl">How dressy</span><div class="chips wrap">${DRESS_FILTERS.map(([k,l])=>chip('dress',k,l,f.dress===k)).join('')}</div></div>
     ${styles.length?`<div class="field"><span class="lbl">Style</span><div class="chips wrap">${styles.map(c=>chip('styles',c,c,f.styles.includes(c))).join('')}</div></div>`:''}
     <div class="field"><span class="lbl">Wear</span><div class="chips wrap">${WORN_FILTERS.map(([k,l])=>chip('worn',k,l,f.worn===k)).join('')}</div></div>
-    <div class="btns"><button class="btn primary" type="button" id="fsApply"></button><button class="btn" type="button" id="fsClear">Clear all</button></div>`);
+    <div class="btns"><p class="muted" id="fsApply" style="margin:0;align-self:center;flex:1"></p><button class="btn" type="button" id="fsClear">Clear all</button></div>`);
   const W=wear().items;
-  const upd=()=>{const n=all.filter(([id,i])=>(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeMatch(i,S.type))&&fPass(id,i,f,W)).length;sh.querySelector('#fsApply').textContent=`Show ${n} piece${n===1?'':'s'}`;
+  const upd=()=>{const n=all.filter(([id,i])=>(S.group==='All'||groupOf(i)===S.group)&&(S.type==='All'||typeMatch(i,S.type))&&fPass(id,i,f,W)).length;sh.querySelector('#fsApply').textContent=`Showing ${n} piece${n===1?'':'s'}`;S.f=JSON.parse(JSON.stringify(f));S.sort=sort;refreshCloset();
     sh.querySelectorAll('[data-fk]').forEach(b=>{const k=b.dataset.fk,v=b.dataset.fv;b.setAttribute('aria-pressed',Array.isArray(f[k])?f[k].includes(v):f[k]===v)});
     sh.querySelectorAll('[data-sort]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.sort===sort))};
   sh.addEventListener('click',e=>{
     const c=e.target.closest('[data-fk]');if(c){const k=c.dataset.fk,v=c.dataset.fv;if(Array.isArray(f[k]))f[k]=f[k].includes(v)?f[k].filter(x=>x!==v):[...f[k],v];else f[k]=f[k]===v?'':v;upd();return}
     const so=e.target.closest('[data-sort]');if(so){sort=so.dataset.sort;upd();return}
     if(e.target.closest('#fsClear')){f.colours=[];f.seasons=[];f.dress='';f.styles=[];f.worn='';sort='new';upd();return}
-    if(e.target.closest('#fsApply')){S.f=f;S.sort=sort;closeSheet();refreshCloset();scrollTo(0,0)}
   });
   upd();
 }
@@ -842,6 +841,10 @@ function weightedPick(entries,W,chosen=[],ctx=null){
   let r=Math.random()*w.reduce((a,b)=>a+b,0);for(let k=0;k<entries.length;k++){r-=w[k];if(r<=0)return entries[k][0]}return entries[entries.length-1][0];
 }
 function doShuffle(){
+  // re-roll (up to 30 times) when the people you're seeing have already seen this outfit
+  for(let n=0;n<30;n++){doShuffle1();if(S.shuf.err||!seeing().size||!seenBy(Object.values(S.shuf.slots),[...seeing()]).length)return}
+}
+function doShuffle1(){
   const sh=S.shuf,W=wear().items,L=sh.locks,slots={};
   for(const k of L)if(sh.slots[k]&&S.items.has(sh.slots[k]))slots[k]=sh.slots[k];
   const P={top:shufPool('Tops'),bottom:shufPool('Bottoms'),one:shufPool('Full length'),shoes:shufPool('Shoes'),outer:shufPool('Jackets'),hat:shufPool('Head'),acc:shufPool('Accessories')};
@@ -885,9 +888,11 @@ function shuffleView(){
       <select id="shSea" aria-label="Season"><option value="auto" ${sh.season==='auto'?'selected':''}>Now: ${(SEASONS.find(x=>x[0]===currentSeason())||[])[1]}</option>${SEASONS.map(([k,l])=>`<option value="${k}" ${sh.season===k?'selected':''}>${l}</option>`).join('')}<option value="" ${sh.season===''?'selected':''}>Any season</option></select>
 </div>
     <div class="chips" role="group" aria-label="Outfit kind">${[['sep','Top + bottom'],['one','Full length']].map(([k,l])=>`<button class="chip" type="button" data-shmode="${k}" aria-pressed="${sh.mode===k}">${l}</button>`).join('')}</div>
+    <div class="chips"><button class="chip${seeing().size?'':' ghost'}" type="button" id="shSeeing">${seeing().size?`Seeing ${esc([...seeing()].join(', '))}`:'Who are you seeing?'}</button></div>
     <div class="chips" role="group" aria-label="Include in the outfit">${OPTIONAL_ROWS.map(([k,l])=>`<button class="chip tgl" type="button" data-shon="${k}" aria-pressed="${!!sh.on[k]}">${sh.on[k]?'✓ ':''}${l}</button>`).join('')}</div>
     ${sh.err?empty('Nothing to shuffle yet',sh.err):`
     <div class="srows">${(SHUF_ROWS[sh.cur]||SHUF_ROWS.sep).filter(k=>!['outer','acc'].includes(k)||sh.on[k]).map(row).join('')}</div>
+    ${seeing().size?`<p id="seenWarn" class="seenw${seenWarnHTML().startsWith('⚠')?' bad':''}">${seenWarnHTML()}</p>`:''}
     ${withs.length?`<p class="muted" style="margin:0;font-size:13px">Worn with: <b>${withs.map(i=>esc(i.name)).join(', ')}</b></p>`:''}
     <div class="btns"><button class="btn primary" type="button" id="shGo">Shuffle</button><button class="btn" type="button" id="shLike" aria-label="I like this outfit">👍</button><button class="btn" type="button" id="shNope" aria-label="Not for me">👎</button><button class="btn" type="button" id="shSave">Save as outfit</button><button class="btn" type="button" id="shWear">Wear today</button></div>
     <p class="muted" style="margin:0;font-size:12px">Swipe a row to pick a piece, tap the lock to keep it, and Shuffle changes the rest. Shuffle learns from 👍, 👎 and what you save and wear.</p>`}`;
@@ -904,7 +909,7 @@ function settleCar(car){
   if(!best)return;
   if(+car.dataset.n>1&&best.dataset.copy!=='1'){const twin=car.querySelector(`[data-cid="${best.dataset.cid}"][data-copy="1"]`);if(twin){car.scrollLeft+=twin.offsetLeft-best.offsetLeft;best=twin}}
   car.querySelectorAll('.scard.on').forEach(x=>x.classList.remove('on'));best.classList.add('on');
-  const k=car.dataset.car,id=best.dataset.cid;if(S.shuf.slots[k]!==id){S.shuf.slots[k]=id;S.shuf.shownAt=Date.now();fixLayers(k)}
+  const k=car.dataset.car,id=best.dataset.cid;if(S.shuf.slots[k]!==id){S.shuf.slots[k]=id;S.shuf.shownAt=Date.now();fixLayers(k);paintSeen()}
 }
 function fixLayers(k){
   const o=k==='top'?'outer':k==='outer'?'top':null,sl=S.shuf.slots;if(!o||!sl[o]||slotOK(o,sl[o],sl))return;
@@ -931,6 +936,7 @@ function wireShuffle(){
   $('#shNope')?.addEventListener('click',async()=>{await bumpTaste(Object.values(sh.slots),-.6,0);spin();toast('Got it. Fewer like that.')});
   $('#shSave')?.addEventListener('click',()=>{bumpTaste(Object.values(sh.slots),.6,0).catch(()=>{});outfitSheet(null,Object.values(sh.slots))});
   $('#shWear')?.addEventListener('click',async e=>{const ids=Object.values(sh.slots);await guard(e.currentTarget,async()=>{bumpTaste(ids,.6,0).catch(()=>{});let oid=matchOutfit(ids);await saveDoc('plans',today(),{itemIds:ids,outfitId:oid,note:S.plans.get(today())?.note||''});toast('Logged for today')})});
+  $('#shSeeing')?.addEventListener('click',seeingSheet);
   $('#shStyle')?.addEventListener('change',e=>{sh.style=e.target.value;sh.locks.clear();doShuffle();render()});
   $('#shOcc')?.addEventListener('change',e=>{sh.occ=e.target.value;sh.locks.clear();doShuffle();render()});
   $('#shSea')?.addEventListener('change',e=>{sh.season=e.target.value;sh.locks.clear();doShuffle();render()});
@@ -1017,6 +1023,13 @@ function weatherStrip(){
       :`<p class="muted" style="margin:0;font-size:13px">${WX.loading?'Getting the forecast…':esc(WX.err||'No forecast yet.')}</p>`}
     ${days.length&&WX.err?`<p class="muted" style="margin:0;font-size:12px">${esc(WX.err)}</p>`:''}</div>`;
 }
+// Calendar and Looks share one tab
+function wornView(){
+  if(!S.ready)return calendarView();
+  const todo=[...S.looks.values()].filter(l=>l.status!==LOOK_DONE&&l.status!==LOOK_SKIP).length;
+  return `<div class="seg" role="tablist"><button type="button" role="tab" data-caltab="cal" aria-selected="${S.calTab!=='looks'}">Calendar</button><button type="button" role="tab" data-caltab="looks" aria-selected="${S.calTab==='looks'}">Looks${todo?` <span class="segn">${todo}</span>`:''}</button></div>`
+    +(S.calTab==='looks'?looksView():calendarView());
+}
 function calendarView(){
   if(!wxLoc()||(wxLoc().src==='default'&&GH.cfg()&&!WX.ghTried))setTimeout(wxAuto,0);else if(wxStale())setTimeout(()=>loadWeather(),0);
   const m=S.month,y=m.getFullYear(),mo=m.getMonth(),t=today();
@@ -1093,7 +1106,8 @@ function statsBody(){
 document.addEventListener('change',e=>{if(e.target.id!=='lookFiles')return;const fs=[...e.target.files];e.target.value='';if(fs.length)importLooks(fs)});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-wxform]');if(!f)return;e.preventDefault();const q=f.querySelector('#wxQ').value;WX.setup=false;wxCity(q)});
 document.addEventListener('click',e=>{
-  const tab=e.target.closest('[data-tab]');if(tab){S.view=tab.dataset.tab;ls.set('closet.view',S.view);render();scrollTo(0,0);return}
+  const tab=e.target.closest('[data-tab]');if(tab){S.view=tab.dataset.tab;ls.set('closet.view',S.view);if(S.view==='shuffle'&&S.ready&&S.shuf.closet===S.closet)doShuffle();render();scrollTo(0,0);return}
+  const ct=e.target.closest('[data-caltab]');if(ct){S.calTab=ct.dataset.caltab;ls.set('closet.calTab',S.calTab);render();scrollTo(0,0);return}
   if(e.target.closest('#sheetRoot'))return;
   if(e.target.closest('#syncBtn,[data-open-sync]')){syncSheet();return}
   if(e.target.closest('#manageClosets')){closetsSheet();return}
@@ -1165,11 +1179,27 @@ function openSheet(html){
   scrim.innerHTML=`<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   scrim.addEventListener('click',e=>{if(e.target===scrim||e.target.closest('[data-close]'))closeSheet()});
   $('#sheetRoot').replaceChildren(scrim);document.body.style.overflow='hidden';
-  return scrim.querySelector('.sheet');
+  const sheet=scrim.querySelector('.sheet');swipeClose(scrim,sheet);
+  return sheet;
+}
+// pull a sheet down to close it: from the handle or title, or anywhere once it's scrolled to the top
+function swipeClose(scrim,sheet){
+  let y0=0,x0=0,dy=0,t0=0,on=false,dec=false;
+  sheet.addEventListener('touchstart',e=>{const t=e.target;on=false;if(e.touches.length!==1||t.closest('.board.edit,[data-pc],input[type=range]'))return;
+    on=sheet.scrollTop<=0||!!t.closest('.grab,.shead');dec=false;dy=0;y0=e.touches[0].clientY;x0=e.touches[0].clientX;t0=Date.now()},{passive:true});
+  sheet.addEventListener('touchmove',e=>{if(!on)return;const t=e.touches[0],ddy=t.clientY-y0,ddx=t.clientX-x0;
+    if(!dec){if(Math.abs(ddy)<6&&Math.abs(ddx)<6)return;dec=true;if(Math.abs(ddx)>Math.abs(ddy)||ddy<0){on=false;return}}
+    dy=Math.max(0,ddy);if(e.cancelable)e.preventDefault();sheet.style.transition='none';sheet.style.transform=`translateY(${dy}px)`;scrim.style.background=`rgb(10 8 16/${(.45*Math.max(0,1-dy/500)).toFixed(3)})`},{passive:false});
+  const end=()=>{if(!on||!dec){on=false;return}on=false;const v=dy/Math.max(1,Date.now()-t0);
+    if(dy>110||(dy>35&&v>.5)){sheet.style.transition='transform .18s ease-in';sheet.style.transform='translateY(105%)';setTimeout(()=>{if(scrim.isConnected)closeSheet()},170)}
+    else{sheet.style.transition='transform .2s ease-out';sheet.style.transform='';scrim.style.background=''}};
+  sheet.addEventListener('touchend',end);sheet.addEventListener('touchcancel',end);
 }
 function closeSheet(){$('#sheetRoot').replaceChildren();document.body.style.overflow=''}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#sheetRoot').firstChild)closeSheet()});
 const head=t=>`<div class="shead"><h2>${t}</h2><button class="iconbtn" type="button" data-close aria-label="Close">✕</button></div>`;
+// a sheet title with a Delete button at the top, next to close
+const headDel=(t,id,label)=>`<div class="shead"><h2>${t}</h2><span class="shbtns"><button class="btn sm danger" type="button" id="${id}">${label}</button><button class="iconbtn" type="button" data-close aria-label="Close">✕</button></span></div>`;
 function armDelete(btn,fn,label='Delete'){btn.addEventListener('click',()=>{if(!btn.classList.contains('armed')){btn.classList.add('armed');btn.textContent='Tap again to confirm';setTimeout(()=>{btn.classList.remove('armed');btn.textContent=label},3500);return}fn()})}
 async function guard(btn,fn){btn.disabled=true;try{await fn()}catch(err){console.error(err);toast(err?.name==='QuotaExceededError'?'This device is out of space for the app. Free up storage and try again.':err?.code==='unsupported_type'?'That file type isn’t supported. Try a JPEG or PNG.':'Couldn’t save. Please try again.')}finally{btn.disabled=false}}
 
@@ -1830,28 +1860,32 @@ function lookSheet(lid){
   if(l.status!==LOOK_DONE)return lookEditSheet(lid);
   const ids=(l.itemIds||[]).filter(i=>S.items.has(i)),o=l.outfitId&&S.outfits.get(l.outfitId);
   const tile=id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-vitem="${id}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`};
-  const sh=openSheet(`${head(fmtDate(l.date))}
+  const sh=openSheet(`${headDel(fmtDate(l.date),'lDel','Delete')}
     <div class="lookph"><span class="lookov" style="position:relative;display:inline-block;max-width:100%;line-height:0">${img(l.imageId)}${lookOv(l)}</span></div>
+    ${(l.people||[]).length?`<p class="ivnote"><span>Seen by <b>${esc(l.people.join(', '))}</b></span></p>`:''}
     ${o?`<button type="button" class="ivnote lookout" data-voutfit="${l.outfitId}"><span>Outfit: <b>${esc(o.name||'Outfit')}</b></span></button>`:''}
     <div class="lbl">Pieces · ${ids.length}</div>
     ${ids.length?`<div class="hscroll">${ids.map(tile).join('')}</div>`:`<p class="muted" style="margin:0;font-size:13px">No pieces logged.</p>`}
-    <div class="btns"><button class="btn primary" type="button" id="lEdit">Edit</button><button class="btn danger" type="button" id="lDel">Delete look</button></div>`);
+    <div class="btns"><button class="btn primary" type="button" id="lEdit">Edit</button></div>`);
   sh.addEventListener('click',e=>{
     if(e.target.closest('#lEdit')){closeSheet();lookEditSheet(lid);return}
     const ov=e.target.closest('[data-voutfit]');if(ov){closeSheet();outfitView(ov.dataset.voutfit);return}
     const vi=e.target.closest('[data-vitem]');if(vi){closeSheet();itemView(vi.dataset.vitem);return}
   });
   const del=sh.querySelector('#lDel');armDelete(del,()=>guard(del,async()=>{
-    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Look deleted')}),'Delete look');
+    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Look deleted')}),'Delete');
 }
 function lookEditSheet(lid){
   const l=S.looks.get(lid);if(!l)return;
   const sel=new Set((l.itemIds||[]).filter(i=>S.items.has(i)));let outfitId=l.outfitId&&S.outfits.has(l.outfitId)?l.outfitId:null,touched=!!sel.size;
   const outs=[...S.outfits.entries()];
-  const sh=openSheet(`${head(l.status===LOOK_DONE?'Logged look':'What are you wearing?')}
+  const PPL=new Set(l.people||[]);
+  const sh=openSheet(`${headDel(l.status===LOOK_DONE?'Logged look':'What are you wearing?','lDel','Delete')}
     <div class="lookph">${img(l.imageId)}</div>
     <div class="field"><label for="lDate">Day you wore it</label><input id="lDate" type="date" value="${l.date||today()}" max="${today()}"></div>
     ${l.dateGuess?`<p class="muted" style="margin:-6px 0 0;font-size:13px">This photo didn’t say when it was taken. Check the date.</p>`:''}
+    <div class="field"><span class="lbl">Who saw you in this? <small class="muted" style="text-transform:none;letter-spacing:0">(so Shuffle won’t repeat it for them)</small></span><div class="chips wrap" id="pplRow"></div>
+      <div class="pplAdd"><input id="pplNew" placeholder="Add a name" autocomplete="off" enterkeyhint="done"><button class="btn sm" type="button" id="pplAddBtn">Add</button></div></div>
     <div class="lbl">Best guesses <small class="muted" style="text-transform:none;letter-spacing:0">(tap to add or remove${learnedCount()?` · learned from ${learnedCount()} logged look${learnedCount()===1?'':'s'}`:''})</small></div>
     <div class="guess" id="guess"><p class="muted" id="gMsg" style="margin:0;font-size:13px">${S.items.size?'Finding your pieces…':'Add pieces to your closet first.'}</p></div>
     ${outs.length?`<div class="lbl">Or a saved outfit</div><div class="hscroll">${outs.map(([oid,o])=>`<button type="button" class="oc" data-oc="${oid}" aria-pressed="${outfitId===oid}">${boardHTML(o.itemIds||[],o.layout)}<small>${esc(o.name)}</small></button>`).join('')}</div>`:''}
@@ -1860,7 +1894,7 @@ function lookEditSheet(lid){
     <div class="field"><label for="lNew">Save these pieces as an outfit (optional)</label><input id="lNew" placeholder="Outfit name" autocomplete="off"></div>
     <div class="btns"><button class="btn primary" type="button" id="lSave">${l.status===LOOK_DONE?'Save changes':'Log this look'}</button>
       ${l.status!==LOOK_SKIP?`<button class="btn" type="button" id="lSkip">No clothes to log</button>`:''}
-      <button class="btn danger" type="button" id="lDel">Delete photo</button></div>`);
+</div>`);
   const sync_=()=>{
     sh.querySelectorAll('[data-pk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.pk)));
     sh.querySelectorAll('[data-gk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.gk)));
@@ -1868,6 +1902,7 @@ function lookEditSheet(lid){
     sh.querySelector('#selLbl').textContent=`Pieces · ${sel.size} selected`;
   };
   wirePicker(sh,sel,()=>{touched=true;outfitId=null;sync_()});
+  wirePeople(sh,PPL);
   sh.querySelectorAll('[data-oc]').forEach(b=>b.addEventListener('click',()=>{touched=true;const was=outfitId===b.dataset.oc;sel.clear();outfitId=was?null:b.dataset.oc;if(!was)(S.outfits.get(b.dataset.oc).itemIds||[]).forEach(i=>S.items.has(i)&&sel.add(i));sync_()}));
   const gbox=sh.querySelector('#guess');
   gbox.addEventListener('click',e=>{const b=e.target.closest('[data-gk]');if(!b)return;touched=true;outfitId=null;const id=b.dataset.gk;sel.has(id)?sel.delete(id):sel.add(id);sync_()});
@@ -1897,14 +1932,14 @@ function lookEditSheet(lid){
     for(const r of g0?.regions||[]){const R=SEG_REGIONS.find(x=>x.key===r.key);if(!R)continue;
       const m=[...sel].filter(id=>S.items.has(id)&&R.ok(S.items.get(id)));if(m.length===1)learn[r.key]={item:m[0],lab:r.lab||null,p:r.p??0}}
     const rej=(g0?.pick||[]).filter(id=>!sel.has(id));
-    await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej});
+    await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej,people:[...PPL]});
     const wasDone=l.status===LOOK_DONE;closeSheet();if(wasDone)lookSheet(lid);toast(`Logged on ${fmtDate(date)}`);
     try{const made=await autoOutfits();if(made.length)toast(`Saved as an outfit: ${S.outfits.get(made[0])?.name||''}`)}catch(e){console.warn('auto outfits',e)}
   }));
   const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
     const cur=S.looks.get(lid);await unlogLook(cur);await saveDoc('looks',lid,{...cur,status:LOOK_SKIP,itemIds:[],outfitId:null});closeSheet();toast('Skipped')}));
   const del=sh.querySelector('#lDel');armDelete(del,()=>guard(del,async()=>{
-    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Photo deleted')}),'Delete photo');
+    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Photo deleted')}),'Delete');
 }
 
 /* ---------- declutter: guided review of pieces to reconsider ---------- */
@@ -2388,6 +2423,40 @@ const sleeveFromName=n=>/long[- ]sleeve|turtleneck|mock[- ]neck/i.test(n)?'Long 
 function alsoHTML(i,show){
   const on=new Set(alsoOf(i));
   return `<div class="field" id="alsoRow" ${show?'':'hidden'}><span class="lbl">Also counts as</span><div class="fits" role="group" aria-label="Also counts as">${ALSO.map(([k,l])=>`<button type="button" class="sea" data-also="${k}" aria-pressed="${on.has(k)}"><small>${l}</small></button>`).join('')}</div></div>`;
+}
+
+
+/* ---------- who saw you: people on looks, so Shuffle doesn't repeat an outfit for someone within your last 3 meetups ---------- */
+const MEETUPS=3;
+const outfitCore=ids=>[...new Set(ids)].filter(i=>['Tops','Bottoms','Full length'].includes(groupOf(S.items.get(i)))).sort().join('|');
+function allPeople(){const c={};for(const l of S.looks.values())for(const p of l.people||[])c[p]=(c[p]||0)+1;return Object.keys(c).sort((a,b)=>c[b]-c[a]||a.localeCompare(b))}
+// the looks from your last few meetups with this person (one meetup per day)
+function meetups(name){const t=today(),by={};
+  for(const l of S.looks.values())if(l.status===LOOK_DONE&&l.date&&l.date<=t&&(l.people||[]).includes(name))(by[l.date]??=[]).push(l);
+  return Object.keys(by).sort().reverse().slice(0,MEETUPS).flatMap(d=>by[d])}
+// who has seen these pieces (top + bottom, or the full-length piece) in your last meetups with them
+function seenBy(ids,names){const k=outfitCore(ids);if(!k)return[];const out=[];
+  for(const n of names){const l=meetups(n).find(x=>outfitCore(x.itemIds||[])===k);if(l)out.push({name:n,date:l.date})}return out}
+const seeing=()=>S.shuf.seeing||(S.shuf.seeing=new Set());
+function seenWarnHTML(){const sv=[...seeing()];if(!sv.length)return'';const hit=seenBy(Object.values(S.shuf.slots),sv);
+  return hit.length?`⚠ ${hit.map(h=>`${esc(h.name)} saw you in this on ${fmtDate(h.date)}`).join(' · ')}`:`✓ New to ${esc(sv.join(', '))}`}
+function paintSeen(){const el=document.getElementById('seenWarn');if(el){const h=seenWarnHTML();el.innerHTML=h;el.className='seenw'+(h.startsWith('⚠')?' bad':'')}}
+function wirePeople(sh,set,onChange){
+  const row=sh.querySelector('#pplRow'),inp=sh.querySelector('#pplNew');
+  const paint=()=>{const names=[...new Set([...allPeople(),...set])];row.innerHTML=names.map(n=>`<button class="chip" type="button" data-ppl="${esc(n)}" aria-pressed="${set.has(n)}">${esc(n)}</button>`).join('')||'<small class="muted">No one yet. Add a name below.</small>'};
+  const add=()=>{const n=inp.value.trim().replace(/\s+/g,' ');if(!n)return;const ex=[...new Set([...allPeople(),...set])].find(x=>x.toLowerCase()===n.toLowerCase())||n;set.add(ex);inp.value='';paint();onChange&&onChange()};
+  row.addEventListener('click',e=>{const b=e.target.closest('[data-ppl]');if(!b)return;const n=b.dataset.ppl;set.has(n)?set.delete(n):set.add(n);paint();onChange&&onChange()});
+  sh.querySelector('#pplAddBtn').addEventListener('click',add);inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}});
+  paint();
+}
+function seeingSheet(){
+  const set=seeing();
+  const sh=openSheet(`${head('Who are you seeing?')}<p class="muted" style="margin:0;font-size:14px">Shuffle won’t give you an outfit they saw in your last ${MEETUPS} meetups. Tag people on your looks to build this up.</p>
+    <div class="field"><div class="chips wrap" id="pplRow"></div><div class="pplAdd"><input id="pplNew" placeholder="Add a name" autocomplete="off" enterkeyhint="done"><button class="btn sm" type="button" id="pplAddBtn">Add</button></div></div>
+    <div class="btns"><button class="btn" type="button" id="seeClear">No one in particular</button></div>`);
+  const upd=()=>{doShuffle();render()};
+  wirePeople(sh,set,upd);
+  sh.querySelector('#seeClear').addEventListener('click',()=>{set.clear();closeSheet();upd()});
 }
 
 /* ---------- boot ---------- */
