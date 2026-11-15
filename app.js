@@ -1817,7 +1817,27 @@ async function unlogLook(l){
   else await delDoc('plans',l.date);
 }
 const learnedCount=()=>[...S.looks.values()].filter(l=>l.status===LOOK_DONE&&l.learn).length;
+/* a logged look: the photo with its outfit in the corner, the pieces, Edit and Delete */
 function lookSheet(lid){
+  const l=S.looks.get(lid);if(!l)return;
+  if(l.status!==LOOK_DONE)return lookEditSheet(lid);
+  const ids=(l.itemIds||[]).filter(i=>S.items.has(i)),o=l.outfitId&&S.outfits.get(l.outfitId);
+  const tile=id=>{const i=S.items.get(id);return `<button type="button" class="gk" data-vitem="${id}"><div class="${phCls(i)}">${thumb(i)}</div><small>${esc(i.name)}</small></button>`};
+  const sh=openSheet(`${head(fmtDate(l.date))}
+    <div class="lookph"><span class="lookov">${img(l.imageId)}${ids.length?boardHTML(ids,o?.layout,'mini'):''}</span></div>
+    ${o?`<button type="button" class="ivnote lookout" data-voutfit="${l.outfitId}"><span>Outfit: <b>${esc(o.name||'Outfit')}</b></span></button>`:''}
+    <div class="lbl">Pieces · ${ids.length}</div>
+    ${ids.length?`<div class="hscroll">${ids.map(tile).join('')}</div>`:`<p class="muted" style="margin:0;font-size:13px">No pieces logged.</p>`}
+    <div class="btns"><button class="btn primary" type="button" id="lEdit">Edit</button><button class="btn danger" type="button" id="lDel">Delete look</button></div>`);
+  sh.addEventListener('click',e=>{
+    if(e.target.closest('#lEdit')){closeSheet();lookEditSheet(lid);return}
+    const ov=e.target.closest('[data-voutfit]');if(ov){closeSheet();outfitView(ov.dataset.voutfit);return}
+    const vi=e.target.closest('[data-vitem]');if(vi){closeSheet();itemView(vi.dataset.vitem);return}
+  });
+  const del=sh.querySelector('#lDel');armDelete(del,()=>guard(del,async()=>{
+    const cur=S.looks.get(lid);await unlogLook(cur);await delDoc('looks',lid);await dropImage(cur.imageId);closeSheet();toast('Look deleted')}),'Delete look');
+}
+function lookEditSheet(lid){
   const l=S.looks.get(lid);if(!l)return;
   const sel=new Set((l.itemIds||[]).filter(i=>S.items.has(i)));let outfitId=l.outfitId&&S.outfits.has(l.outfitId)?l.outfitId:null,touched=!!sel.size;
   const outs=[...S.outfits.entries()];
@@ -1871,7 +1891,7 @@ function lookSheet(lid){
       const m=[...sel].filter(id=>S.items.has(id)&&R.ok(S.items.get(id)));if(m.length===1)learn[r.key]={item:m[0],lab:r.lab||null,p:r.p??0}}
     const rej=(g0?.pick||[]).filter(id=>!sel.has(id));
     await saveDoc('looks',lid,{...S.looks.get(lid),date,itemIds:[...sel],outfitId,status:LOOK_DONE,dateGuess:false,learn,rej});
-    closeSheet();toast(`Logged on ${fmtDate(date)}`);
+    const wasDone=l.status===LOOK_DONE;closeSheet();if(wasDone)lookSheet(lid);toast(`Logged on ${fmtDate(date)}`);
     try{const made=await autoOutfits();if(made.length)toast(`You’ve worn this more than once, so it’s saved as an outfit: ${S.outfits.get(made[0])?.name||''}`)}catch(e){console.warn('auto outfits',e)}
   }));
   const skip=sh.querySelector('#lSkip');skip&&skip.addEventListener('click',()=>guard(skip,async()=>{
