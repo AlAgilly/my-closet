@@ -2206,7 +2206,7 @@ function outfitView(id){
     await saveDoc('plans',t,{note:'',...(p||{}),itemIds:[...new Set([...(p?.itemIds||[]),...items])],outfitId:id});closeSheet();toast('Logged for today')}));
 }
 /* ---------- outfits you keep wearing are saved for you ----------
-   A logged look with a top and a bottom becomes a saved outfit, and looks with the same pieces, shoes aside, are linked to it. */
+   A logged look with a top and a bottom (or a full-length piece) becomes a saved outfit, and looks with the same pieces, shoes aside, are linked to it. */
 function autoOutfitName(ids){
   const it=ids.map(i=>S.items.get(i)).filter(Boolean),order=['Full length','Tops','Bottoms','Jackets'];
   const main=it.filter(i=>order.includes(groupOf(i))).sort((a,b)=>order.indexOf(groupOf(a))-order.indexOf(groupOf(b))).slice(0,2);
@@ -2216,8 +2216,8 @@ function autoOutfitName(ids){
 // shoes don't make an outfit different: the same pieces with or without shoes are the same outfit
 const isShoe=i=>SHOE_T.includes(typeOf(i))||groupOf(i)==='Footwear';
 const noShoeKey=ids=>[...new Set(ids)].filter(i=>S.items.has(i)&&!isShoe(S.items.get(i))).sort().join('|');
-// a look is an outfit when it has a top and a bottom
-const isOutfitLook=ids=>{const g=new Set(ids.map(i=>groupOf(S.items.get(i))));return g.has('Tops')&&g.has('Bottoms')};
+// a look is an outfit when it has a top and a bottom, or a full-length piece
+const isOutfitLook=ids=>{const g=new Set(ids.map(i=>groupOf(S.items.get(i))));return(g.has('Tops')&&g.has('Bottoms'))||g.has('Full length')};
 // the saved outfit that is this look: the same pieces, shoes aside
 function outfitForLook(ids){
   const exact=matchOutfit(ids);if(exact)return exact;
