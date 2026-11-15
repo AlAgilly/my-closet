@@ -1317,7 +1317,7 @@ function itemSheet(id){
   sh.querySelectorAll('[data-also]').forEach(b=>b.addEventListener('click',()=>{const k=b.dataset.also;ALS.has(k)?ALS.delete(k):ALS.add(k);paintAlso()}));
   {const ts=sh.querySelector('#fType'),ar=sh.querySelector('#alsoRow');if(ts&&ar)ts.addEventListener('change',()=>{ar.hidden=GROUP_OF[ts.value]!==ALSO_GROUP})}
   {const ts=sh.querySelector('#fType'),cr=sh.querySelector('#cutRow');if(ts&&cr)ts.addEventListener('change',()=>{cr.hidden=!CUT_GROUPS.includes(GROUP_OF[ts.value])})}
-  const PR={needs:new Set(it?.needs||[]),goes:new Set(id?goesOf(id):[]),no:new Set(it?.goesNo||[])};wirePairs(sh,id,PR);
+  const PR={needs:new Set(id?needsOf(id):[]),goes:new Set(id?goesOf(id):[]),no:new Set(it?.goesNo||[])};wirePairs(sh,id,PR);
   sh.querySelectorAll('[data-slot]').forEach(slot=>{
     const k=slot.dataset.slot,st=P[k],prev=slot.querySelector('[data-prev]'),clr=slot.querySelector('[data-clear]');
     const show=()=>{const has=st.blob||st.id;prev.className='ph'+(has&&st.cutout?' cut':'');
@@ -1403,7 +1403,7 @@ function itemSheet(id){
     data.needs=[...PR.needs].filter(x=>S.items.has(x));data.goes=[...PR.goes].filter(x=>S.items.has(x));data.goesNo=[...PR.no];
     const sid=id||newId();
     await saveDoc('items',sid,{...(it||{}),...data});
-    await savePairLinks(sid,PR.goes);
+    await savePairLinks(sid,PR.goes,PR.needs);
     for(const d of drop)await dropImage(d);
     closeSheet();if(id)itemView(id);toast(id?'Saved':`Added to ${closetName(data.closetId)}`);
   }));
@@ -1986,9 +1986,9 @@ function currentSeason(){
 const seasonsOf=i=>i.seasons!==undefined?i.seasons:guessSeasons(i);
 const dressOf=i=>i.dress!=null?i.dress:guessDress(i);
 const fitsSeason=(i,s)=>{if(!s)return true;const z=seasonsOf(i);return !z.length||z.includes(s)};
-// "goes well with" works both ways; "always wear with" is one way (the shirt needs the undershirt, not the reverse)
+// "goes well with" and "always worn with" both work both ways
 const goesOf=id=>{const i=S.items.get(id);const set=new Set((i?.goes||[]).filter(x=>S.items.has(x)));for(const[o,j]of S.items)if((j.goes||[]).includes(id))set.add(o);set.delete(id);return[...set]};
-const needsOf=id=>(S.items.get(id)?.needs||[]).filter(x=>S.items.has(x)&&x!==id);
+const needsOf=id=>{const set=new Set((S.items.get(id)?.needs||[]).filter(x=>S.items.has(x)));for(const[o,j]of S.items)if((j.needs||[]).includes(id))set.add(o);set.delete(id);return[...set]};
 // pieces you've worn with this one at least twice that aren't linked yet
 function pairSuggestions(id){
   const i=S.items.get(id);if(!i)return[];const cw=coWear(),have=new Set([...goesOf(id),...needsOf(id),...(i.goesNo||[])]);const out=[];
@@ -2069,9 +2069,14 @@ function wirePairs(sh,id,state){
   paint();
 }
 // save "goes well with" both ways: links removed here are removed from the other piece too
-async function savePairLinks(id,goes){
-  for(const[o,j]of S.items){if(o===id)continue;const has=(j.goes||[]).includes(id);
-    if(has&&!goes.has(o))await saveDoc('items',o,{...j,goes:(j.goes||[]).filter(x=>x!==id)});}
+async function savePairLinks(id,goes,needs){
+  for(const[o,j]of S.items){if(o===id)continue;let v=null;
+    if((j.goes||[]).includes(id)&&!goes.has(o))v={...j,goes:(j.goes||[]).filter(x=>x!==id)};
+    // "always worn with" is mirrored: linking A to B also links B to A, and unlinking removes both
+    if(needs){const has=(j.needs||[]).includes(id),want=needs.has(o);
+      if(has!==want){const b=v||{...j};b.needs=want?[...(j.needs||[]),id]:(j.needs||[]).filter(x=>x!==id);
+        if(want)b.goes=(b.goes||[]).filter(x=>x!==id);v=b}}
+    if(v)await saveDoc('items',o,v);}
 }
 // --- Quick tag: seasons and dressiness for every piece, one at a time, with a guess filled in ---
 function quickTagSheet(){
@@ -2302,7 +2307,7 @@ function itemView(id){
   const sw=swatchOf(it),c2=(it.colours2||[]).filter(Boolean);
   const row=(k,v)=>v?`<div class="kv"><span>${k}</span><b>${v}</b></div>`:'';
   const seas=(it.seasons||[]).length?(it.seasons.length===4?'Any season':SEASONS.filter(x=>it.seasons.includes(x[0])).map(x=>x[1]).join(', ')):'';
-  const goes=(it.goes||[]).filter(x=>S.items.has(x)),needs=(it.needs||[]).filter(x=>S.items.has(x));
+  const goes=(it.goes||[]).filter(x=>S.items.has(x)),needs=needsOf(id);
   const chips=ids=>`<div class="hscroll">${ids.map(x=>{const j=S.items.get(x);return `<button type="button" class="gk" data-vitem="${x}"><div class="${phCls(j)}">${thumb(j)}</div><small>${esc(j.name)}</small></button>`}).join('')}</div>`;
   const mi=maybeInfo(id,it);
   const sh=openSheet(`${head(esc(it.name||'Piece'))}
