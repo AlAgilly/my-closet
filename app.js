@@ -1896,6 +1896,8 @@ function lookEditSheet(lid){
       ${l.status!==LOOK_SKIP?`<button class="btn" type="button" id="lSkip">No clothes to log</button>`:''}
 </div>`);
   const sync_=()=>{
+    // picking the exact pieces of a saved outfit lights that outfit up too
+    if(!outfitId&&sel.size){const m=matchOutfit([...sel]);if(m)outfitId=m}
     sh.querySelectorAll('[data-pk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.pk)));
     sh.querySelectorAll('[data-gk]').forEach(b=>b.setAttribute('aria-pressed',sel.has(b.dataset.gk)));
     sh.querySelectorAll('[data-oc]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.oc===outfitId));

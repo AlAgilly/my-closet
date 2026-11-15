@@ -170,7 +170,7 @@ input[type=date]{display:block;width:100%;min-width:0;max-width:100%;box-sizing:
 .hscroll{display:flex;gap:10px;overflow-x:auto;padding:2px;scrollbar-width:none}
 .oc{all:unset;cursor:pointer;flex:none;width:96px;display:flex;flex-direction:column;gap:4px}
 .oc small{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.oc[aria-pressed="true"] .collage{outline:3px solid var(--accent)}
+.oc[aria-pressed="true"] .collage,.oc[aria-pressed="true"] .board{outline:3px solid var(--accent);outline-offset:-1px}.oc[aria-pressed="true"] small{color:var(--accent);font-weight:600}
 .swatches{display:flex;gap:6px;flex-wrap:wrap}
 .swatches button{width:26px;height:26px;border-radius:50%;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent)}
 .toast{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
